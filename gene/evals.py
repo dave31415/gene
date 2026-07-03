@@ -16,8 +16,12 @@ from gene.eval_case import Case, Report, Result
 from gene.llm import CachedAnthropic
 
 
-def run(cases: list[Case], config: dict[str, Any]) -> list[Result]:
-    llm = CachedAnthropic(config=config)
+def run(
+    cases: list[Case],
+    config: dict[str, Any],
+    use_cache: bool = True,
+) -> list[Result]:
+    llm = CachedAnthropic(config=config, use_cache=use_cache)
     results = []
     for case in cases:
         t0 = time.perf_counter()

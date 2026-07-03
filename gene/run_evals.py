@@ -11,6 +11,7 @@ timings log recorded only when caching is disabled — not yet implemented).
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -45,33 +46,45 @@ def cell_to_dict(report: Report, suite: str, config_name: str) -> dict[str, Any]
     }
 
 
-def diff_cell(current: dict, baseline: dict | None) -> list[str]:
-    """Return human-readable diff lines. Empty means bit-identical."""
-    if baseline is None:
-        s = current["summary"]
-        return [f"    no baseline yet ({s['passed']}/{s['total']} would be recorded)"]
+def diff_cell(current: dict, baseline: dict | None) -> tuple[str, list[str]]:
+    """Return (status, diffs). `status` is always shown ("X/Y passed" or
+    "X/Y passed (was A/B)"). `diffs` lists per-case flips and token deltas;
+    empty means nothing meaningful changed."""
+    s = current["summary"]
+    curr_pass = f"{s['passed']}/{s['total']}"
 
-    lines: list[str] = []
+    if baseline is None:
+        return f"    {curr_pass} passed (no baseline)", []
+
+    base_s = baseline["summary"]
+    base_pass = f"{base_s['passed']}/{base_s['total']}"
+    status = (
+        f"    {curr_pass} passed"
+        if curr_pass == base_pass
+        else f"    {curr_pass} passed (was {base_pass})"
+    )
+
+    diffs: list[str] = []
     base_cases = {c["name"]: c for c in baseline["cases"]}
     curr_cases = {c["name"]: c for c in current["cases"]}
 
     for name in sorted(curr_cases.keys() - base_cases.keys()):
-        lines.append(f"    + new case: {name}")
+        diffs.append(f"    + new case: {name}")
     for name in sorted(base_cases.keys() - curr_cases.keys()):
-        lines.append(f"    - removed case: {name}")
+        diffs.append(f"    - removed case: {name}")
 
     for name in sorted(curr_cases.keys() & base_cases.keys()):
         cur = curr_cases[name]
         base = base_cases[name]
         if cur["passed"] and not base["passed"]:
-            lines.append(f"    FIXED   {name}: fail → pass")
+            diffs.append(f"    FIXED   {name}: fail → pass")
         elif not cur["passed"] and base["passed"]:
-            lines.append(f"    REGRESS {name}: pass → fail")
+            diffs.append(f"    REGRESS {name}: pass → fail")
         if cur["output_tokens"] != base["output_tokens"]:
-            lines.append(
+            diffs.append(
                 f"    tokens  {name}: out {base['output_tokens']} → {cur['output_tokens']}"
             )
-    return lines
+    return status, diffs
 
 
 def build_suite_summary(cells: list[dict]) -> dict[str, Any]:
@@ -114,6 +127,11 @@ def main() -> None:
     )
     parser.add_argument("--suite", help="Limit to a single suite.")
     parser.add_argument("--config", help="Limit to a single config.")
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Bypass the LLM cache and append timings to each cell's .timings.jsonl.",
+    )
     args = parser.parse_args()
 
     suites = [args.suite] if args.suite else list_suites()
@@ -128,7 +146,7 @@ def main() -> None:
         cases = load_suite(suite)
         for config_name, config in configs.items():
             print(f"\n>> {suite} × {config_name} ({config['model']})")
-            results = run(cases, config=config)
+            results = run(cases, config=config, use_cache=not args.no_cache)
             report = build_report(results, config=config)
             current = cell_to_dict(report, suite=suite, config_name=config_name)
             cells.append(current)
@@ -138,13 +156,24 @@ def main() -> None:
             if cell_path.exists():
                 baseline = json.loads(cell_path.read_text())
 
-            diff_lines = diff_cell(current, baseline)
-            if diff_lines:
+            status, diffs = diff_cell(current, baseline)
+            print(status)
+            for line in diffs:
+                print(line)
+            if baseline is None or diffs:
                 changed += 1
-                for line in diff_lines:
-                    print(line)
-            else:
-                print("    no changes")
+
+            if args.no_cache:
+                timings_path = RESULTS_DIR / suite / f"{config_name}.timings.jsonl"
+                timings_path.parent.mkdir(parents=True, exist_ok=True)
+                row = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "cases": {r.case.name: round(r.seconds, 3) for r in report.results},
+                    "total_seconds": round(report.total_seconds, 3),
+                }
+                with timings_path.open("a") as f:
+                    f.write(json.dumps(row) + "\n")
+                print(f"    timings: {report.total_seconds:.2f}s total (recorded)")
 
             if args.save:
                 cell_path.parent.mkdir(parents=True, exist_ok=True)

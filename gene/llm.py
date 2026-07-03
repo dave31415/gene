@@ -34,7 +34,14 @@ class CachedAnthropic:
     For chat ergonomics, wrap this in a separate `Conversation`-style class.
     """
 
-    def __init__(self, *, config=None, cache=None, verbose: bool = False):
+    def __init__(
+        self,
+        *,
+        config=None,
+        cache=None,
+        verbose: bool = False,
+        use_cache: bool = True,
+    ):
         self.config = config if config is not None else get_llm_config()
         self.verbose = verbose
 
@@ -43,6 +50,7 @@ class CachedAnthropic:
                 self.config["cache_dir"],
                 serialize=lambda m: m.model_dump_json(),
                 deserialize=Message.model_validate_json,
+                use_cache=use_cache,
                 verbose=verbose,
             )
         else:
