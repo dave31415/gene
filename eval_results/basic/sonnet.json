@@ -1,0 +1,31 @@
+{
+  "suite": "basic",
+  "config_name": "sonnet",
+  "model": "claude-sonnet-4-6",
+  "cases": [
+    {
+      "name": "brian_boru_death",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 6
+    },
+    {
+      "name": "magna_carta",
+      "passed": true,
+      "input_tokens": 16,
+      "output_tokens": 45
+    },
+    {
+      "name": "simple_math",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 5
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "total_input_tokens": 60,
+    "total_output_tokens": 56
+  }
+}

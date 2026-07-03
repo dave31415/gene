@@ -1,0 +1,31 @@
+{
+  "suite": "arithmetic",
+  "config_name": "haiku",
+  "model": "claude-haiku-4-5-20251001",
+  "cases": [
+    {
+      "name": "addition",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 5
+    },
+    {
+      "name": "multiplication",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 5
+    },
+    {
+      "name": "subtraction",
+      "passed": true,
+      "input_tokens": 23,
+      "output_tokens": 5
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "total_input_tokens": 67,
+    "total_output_tokens": 15
+  }
+}

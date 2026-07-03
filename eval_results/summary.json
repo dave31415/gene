@@ -1,0 +1,23 @@
+{
+  "haiku": {
+    "model": "claude-haiku-4-5-20251001",
+    "passed": 6,
+    "total": 6,
+    "total_input_tokens": 127,
+    "total_output_tokens": 64
+  },
+  "opus": {
+    "model": "claude-opus-4-7",
+    "passed": 6,
+    "total": 6,
+    "total_input_tokens": 166,
+    "total_output_tokens": 116
+  },
+  "sonnet": {
+    "model": "claude-sonnet-4-6",
+    "passed": 6,
+    "total": 6,
+    "total_input_tokens": 127,
+    "total_output_tokens": 71
+  }
+}

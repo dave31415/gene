@@ -1,0 +1,31 @@
+{
+  "suite": "basic",
+  "config_name": "opus",
+  "model": "claude-opus-4-7",
+  "cases": [
+    {
+      "name": "brian_boru_death",
+      "passed": true,
+      "input_tokens": 30,
+      "output_tokens": 7
+    },
+    {
+      "name": "magna_carta",
+      "passed": true,
+      "input_tokens": 23,
+      "output_tokens": 85
+    },
+    {
+      "name": "simple_math",
+      "passed": true,
+      "input_tokens": 28,
+      "output_tokens": 6
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "total_input_tokens": 81,
+    "total_output_tokens": 98
+  }
+}
