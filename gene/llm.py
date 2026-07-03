@@ -25,7 +25,14 @@ log = logging.getLogger(__name__)
 
 
 class CachedAnthropic:
-    """Anthropic Messages API with deterministic disk cache."""
+    """Anthropic Messages API with deterministic disk cache.
+
+    Stateless per call: no conversation history is retained between `send()`
+    calls — the caller passes the full messages list each time. The stored
+    fields (`cache`, `client`) exist only to hold expensive dependencies
+    (open disk cache, HTTP connection pool), not to remember prior turns.
+    For chat ergonomics, wrap this in a separate `Conversation`-style class.
+    """
 
     def __init__(self, *, config=None, cache=None, verbose: bool = False):
         self.config = config if config is not None else get_llm_config()
@@ -47,7 +54,7 @@ class CachedAnthropic:
     def _call_api(self, request):
         return self.client.messages.create(**request)
 
-    def messages(
+    def send(
         self,
         *,
         messages: list[dict[str, Any]],
@@ -55,7 +62,13 @@ class CachedAnthropic:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: dict[str, Any] | None = None,
     ) -> Message:
-        """Call messages.create with caching. Returns a typed Message."""
+        """Send a Messages API request through the cache. Returns a typed Message.
+
+        `messages` is a list of alternating user/assistant turns. Each turn has
+        `role` ("user" or "assistant") and `content` (a string, or a list of
+        content blocks: text, image, tool_use, tool_result). The simplest form
+        is `[{"role": "user", "content": "hello"}]`. First turn must be "user".
+        """
         request = build_request(self.config, messages, system, tools, tool_choice)
         return self.cache.call(self._call_api, request)
 
@@ -74,13 +87,13 @@ def demo():
     content = f"Say hello in exactly three words and print this random number {rand_num}."
     messages = [{"role": "user", "content": content}]
 
-    r1 = llm.messages(messages=messages)
+    r1 = llm.send(messages=messages)
     t1 = time.perf_counter()
     print(f"\n=== first call ({t1 - t0:.2f}s) ===")
     print(r1.content[0].text)
 
     t0 = time.perf_counter()
-    r2 = llm.messages(messages=messages)
+    r2 = llm.send(messages=messages)
     t1 = time.perf_counter()
     print(f"\n=== second call ({t1 - t0:.2f}s) ===")
     print(r2.content[0].text)
