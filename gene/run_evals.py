@@ -1,17 +1,20 @@
 """Matrix runner: run every eval suite against every eval config.
 
-Writes per-cell results to `eval_results/<suite>/<config>.json` and a
-summary to `eval_results/summary.md`. Default mode is diff-only: compare
-current run to what's on disk and print the delta without touching files.
-Pass `--save` to overwrite baseline files.
+Writes per-cell results to `eval_results/<suite>/<config>.json` plus
+per-suite (`<suite>/summary.json`) and cross-suite (`summary.json`)
+roll-ups. Default mode is diff-only: compare the current run to what's
+on disk and print the delta without touching files. Pass `--save` to
+overwrite baseline files.
 
-Timings are excluded from the results file (they belong in a separate
-timings log recorded only when caching is disabled — not yet implemented).
+Timings are excluded from the results files. Passing `--no-cache`
+bypasses the LLM cache and appends one row per run to
+`<suite>/<config>.timings.jsonl`, then rebuilds `timings_summary.json`
+files (per-suite and top-level) from the accumulated history.
 """
 
 import argparse
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
@@ -135,9 +138,7 @@ def build_suite_timing_summary(suite_dir: Path) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for path in sorted(suite_dir.glob("*.timings.jsonl")):
         config_name = path.name.removesuffix(".timings.jsonl")
-        rows = [
-            json.loads(line) for line in path.read_text().splitlines() if line.strip()
-        ]
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
         if rows:
             result[config_name] = build_config_timing_summary(rows)
     return result
@@ -176,9 +177,7 @@ def write_timing_summaries(results_dir: Path) -> None:
         if not list(suite_dir.glob("*.timings.jsonl")):
             continue
         suite_summary = build_suite_timing_summary(suite_dir)
-        (suite_dir / "timings_summary.json").write_text(
-            json.dumps(suite_summary, indent=2) + "\n"
-        )
+        (suite_dir / "timings_summary.json").write_text(json.dumps(suite_summary, indent=2) + "\n")
     top = build_top_timing_summary(results_dir)
     if top:
         (results_dir / "timings_summary.json").write_text(json.dumps(top, indent=2) + "\n")
@@ -250,7 +249,7 @@ def main() -> None:
                 timings_path = RESULTS_DIR / suite / f"{config_name}.timings.jsonl"
                 timings_path.parent.mkdir(parents=True, exist_ok=True)
                 row = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "cases": {r.case.name: round(r.seconds, 3) for r in report.results},
                     "total_seconds": round(report.total_seconds, 3),
                 }
@@ -273,9 +272,7 @@ def main() -> None:
 
         top_summary_path = RESULTS_DIR / "summary.json"
         top_summary_path.parent.mkdir(parents=True, exist_ok=True)
-        top_summary_path.write_text(
-            json.dumps(build_top_summary(cells), indent=2) + "\n"
-        )
+        top_summary_path.write_text(json.dumps(build_top_summary(cells), indent=2) + "\n")
 
     if args.no_cache:
         write_timing_summaries(RESULTS_DIR)

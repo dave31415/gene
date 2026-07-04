@@ -106,7 +106,6 @@ def demo():
     print(f"\n=== second call ({t1 - t0:.2f}s) ===")
     print(r2.content[0].text)
 
-
     print("\nFull response object\n----------------\n")
     print_llm_response(r2)
 

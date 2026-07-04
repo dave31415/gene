@@ -10,9 +10,7 @@ def get_model_name(tag: str) -> str:
         "opus": "claude-opus-4-7",
     }
     if tag not in model_names:
-        raise ValueError(
-            f"Unknown model tag: {tag!r}. Valid tags: {sorted(model_names)}."
-        )
+        raise ValueError(f"Unknown model tag: {tag!r}. Valid tags: {sorted(model_names)}.")
     return model_names[tag]
 
 
