@@ -144,8 +144,8 @@ def build_suite_timing_summary(suite_dir: Path) -> dict[str, Any]:
 
 
 def build_top_timing_summary(results_dir: Path) -> dict[str, Any]:
-    """Aggregate timing across all suites, keyed by config. `expected_total_seconds`
-    is the sum of per-suite mean totals — how long one full matrix run should take."""
+    """Aggregate timing across all suites, keyed by config. `mean_total_seconds`
+    is the sum of per-suite mean totals — average duration of one full matrix run."""
     per_suite: dict[str, dict] = {}
     for suite_dir in sorted(p for p in results_dir.iterdir() if p.is_dir()):
         suite_summary = build_suite_timing_summary(suite_dir)
@@ -164,7 +164,7 @@ def build_top_timing_summary(results_dir: Path) -> dict[str, Any]:
             if config in cfgs
         }
         top[config] = {
-            "expected_total_seconds": round(sum(suite_means.values()), 3),
+            "mean_total_seconds": round(sum(suite_means.values()), 3),
             "per_suite_mean": suite_means,
         }
     return top
