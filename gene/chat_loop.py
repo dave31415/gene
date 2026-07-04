@@ -11,7 +11,7 @@ from gene.config import get_llm_config
 from gene.conversation import Conversation
 from gene.llm import CachedAnthropic
 from gene.tools.calculator import CALCULATOR
-from gene.turn import TurnRunner
+from gene.turn_runner import TurnRunner
 
 
 def chat_loop(

@@ -9,7 +9,8 @@ including tool loops — to the runner, then splices the resulting
 No persistence — history disappears when the object is garbage-collected.
 """
 
-from gene.turn import Turn, TurnRunner
+from gene.turn import Turn
+from gene.turn_runner import TurnRunner
 
 
 class Conversation:
