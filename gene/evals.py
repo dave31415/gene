@@ -25,7 +25,7 @@ def run(
     results = []
     for case in cases:
         t0 = time.perf_counter()
-        msg = llm.send(messages=[{"role": "user", "content": case.prompt}])
+        msg, _ = llm.send(messages=[{"role": "user", "content": case.prompt}])
         elapsed = time.perf_counter() - t0
         results.append(
             Result(

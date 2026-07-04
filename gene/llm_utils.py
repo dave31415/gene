@@ -79,19 +79,21 @@ class Cache:
         else:
             self._store = None
 
-    def call(self, func, arg: dict):
+    def call(self, func, arg: dict) -> tuple[Any, bool]:
+        """Return (result, hit). `hit` is True on cache read, False when the
+        underlying function was actually invoked (or when caching is off)."""
         if self._store is None:
-            return func(arg)
+            return func(arg), False
 
         key = cache_key(arg)
         hit = self._store.get(key)
         if hit is not None:
             if self.verbose:
                 log.debug("cache hit: %s", key[:12])
-            return self.deserialize(hit)
+            return self.deserialize(hit), True
 
         result = func(arg)
         self._store[key] = self.serialize(result)
         if self.verbose:
             log.debug("cache miss, stored: %s", key[:12])
-        return result
+        return result, False

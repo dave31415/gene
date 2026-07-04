@@ -69,16 +69,21 @@ class CachedAnthropic:
         system: str | list[dict[str, Any]] | None = None,
         tools: list[dict[str, Any]] | None = None,
         tool_choice: dict[str, Any] | None = None,
-    ) -> Message:
-        """Send a Messages API request through the cache. Returns a typed Message.
+    ) -> tuple[Message, dict[str, Any]]:
+        """Send a Messages API request through the cache. Returns (Message, meta).
 
         `messages` is a list of alternating user/assistant turns. Each turn has
         `role` ("user" or "assistant") and `content` (a string, or a list of
         content blocks: text, image, tool_use, tool_result). The simplest form
         is `[{"role": "user", "content": "hello"}]`. First turn must be "user".
+
+        `meta` currently holds `{"cache_hit": bool}` and is the extension point
+        for future per-call observability (wall-clock, request bytes, etc.)
+        without another signature break.
         """
         request = build_request(self.config, messages, system, tools, tool_choice)
-        return self.cache.call(self._call_api, request)
+        msg, cache_hit = self.cache.call(self._call_api, request)
+        return msg, {"cache_hit": cache_hit}
 
 
 def print_llm_response(msg: Message) -> None:
@@ -95,13 +100,13 @@ def demo():
     content = f"Say hello in exactly three words and print this random number {rand_num}."
     messages = [{"role": "user", "content": content}]
 
-    r1 = llm.send(messages=messages)
+    r1, _ = llm.send(messages=messages)
     t1 = time.perf_counter()
     print(f"\n=== first call ({t1 - t0:.2f}s) ===")
     print(r1.content[0].text)
 
     t0 = time.perf_counter()
-    r2 = llm.send(messages=messages)
+    r2, _ = llm.send(messages=messages)
     t1 = time.perf_counter()
     print(f"\n=== second call ({t1 - t0:.2f}s) ===")
     print(r2.content[0].text)

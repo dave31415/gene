@@ -1,25 +1,29 @@
-"""
-A chat loop
+"""Interactive chat REPL for gene.
+
+Wires a `TurnRunner` (with the calculator tool by default) into a
+`Conversation` and pumps stdin through it. Pass `--verbose` to print
+`turn.summary()` after each response — handy for seeing when tools ran.
 """
 
 import argparse
-from anthropic.types import Message
 
 from gene.config import get_llm_config
 from gene.conversation import Conversation
 from gene.llm import CachedAnthropic
+from gene.tools.calculator import CALCULATOR
+from gene.turn import TurnRunner
 
 
-def _text(msg: Message) -> str:
-    """Join every text block in a response into one string."""
-    return "".join(b.text for b in msg.content if b.type == "text")
-
-
-def chat_loop(model: str = "sonnet", system: str | None = None) -> None:
+def chat_loop(
+    model: str = "sonnet",
+    system: str | None = None,
+    verbose: bool = False,
+) -> None:
     """Interactive REPL. /quit or Ctrl-D to exit."""
     llm = CachedAnthropic(config=get_llm_config(model=model))
-    conv = Conversation(llm, system=system)
-    print(f"Chat started (model={model}). /quit to exit.\n")
+    runner = TurnRunner(llm=llm, tools=[CALCULATOR])
+    conv = Conversation(runner, system=system)
+    print(f"Chat started (model={model}, tools=[calculator]). /quit to exit.\n")
 
     while True:
         try:
@@ -31,8 +35,10 @@ def chat_loop(model: str = "sonnet", system: str | None = None) -> None:
             continue
         if user in ("/quit", "/exit", "/q"):
             break
-        msg = conv.ask(user)
-        print(f"llm> {_text(msg)}\n")
+        turn = conv.ask(user)
+        print(f"llm> {turn.text}\n")
+        if verbose:
+            print(f"     [{turn.summary()}]\n")
 
 
 if __name__ == "__main__":
@@ -44,5 +50,10 @@ if __name__ == "__main__":
         help="Model tag (default: sonnet)",
     )
     parser.add_argument("--system", default=None, help="Optional system prompt")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print turn summary (steps, tools, tokens) after each response.",
+    )
     args = parser.parse_args()
-    chat_loop(model=args.model, system=args.system)
+    chat_loop(model=args.model, system=args.system, verbose=args.verbose)

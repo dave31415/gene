@@ -1,26 +1,29 @@
-"""Stateful chat wrapper over `CachedAnthropic`.
+"""Stateful chat session on top of a `TurnRunner`.
 
-`Conversation` holds the growing messages list for the life of the object.
+`Conversation` owns the message history (the flat list the API needs)
+and a parallel list of `Turn` objects (the structured view for
+observability and evals). Every `ask()` delegates the actual work —
+including tool loops — to the runner, then splices the resulting
+`turn.new_messages` into history.
+
 No persistence — history disappears when the object is garbage-collected.
-Each `ask()` sends the whole history, so the disk cache keys still work:
-replay the same sequence of user inputs and every turn hits the cache.
 """
 
-from anthropic.types import Message
-from gene.llm import CachedAnthropic
+from gene.turn import Turn, TurnRunner
 
 
 class Conversation:
-    """One chat session. Owns the messages list; delegates to a `CachedAnthropic`."""
+    """One chat session. Owns history; delegates each turn to a `TurnRunner`."""
 
-    def __init__(self, llm: CachedAnthropic, system: str | None = None):
-        self.llm = llm
+    def __init__(self, runner: TurnRunner, system: str | None = None):
+        self.runner = runner
         self.system = system
         self.history: list[dict] = []
+        self.turns: list[Turn] = []
 
-    def ask(self, text: str) -> Message:
-        """Add a user turn, send, remember the assistant turn, return the Message."""
-        self.history.append({"role": "user", "content": text})
-        msg = self.llm.send(messages=self.history, system=self.system)
-        self.history.append({"role": "assistant", "content": msg.content})
-        return msg
+    def ask(self, text: str) -> Turn:
+        """Run one turn: send, execute any tools, loop until end_turn."""
+        turn = self.runner.run(self.history, text, system=self.system)
+        self.history.extend(turn.new_messages)
+        self.turns.append(turn)
+        return turn
