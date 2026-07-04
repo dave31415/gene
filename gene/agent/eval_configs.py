@@ -6,7 +6,7 @@ tags; add variants (max_tokens, temperature, ...) by adding new entries.
 
 from typing import Any
 
-from gene.config import get_llm_config
+from gene.agent.config import get_llm_config
 
 
 def get_eval_configs() -> dict[str, dict[str, Any]]:

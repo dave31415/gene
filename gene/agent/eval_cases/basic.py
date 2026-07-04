@@ -1,6 +1,6 @@
 """Basic sanity cases: short factual questions with unambiguous answers."""
 
-from gene.eval_case import Case, text
+from gene.agent.eval_case import Case, text
 
 CASES: list[Case] = [
     Case(

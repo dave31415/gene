@@ -4,10 +4,10 @@ The log itself is the source of truth — raw request/response payloads,
 timings, tool I/O. This module renders content-focused (default) and
 step-by-step (`--trace`) views over a whole file.
 
-    uv run python -m gene.log_view PATH               # index / in / out per turn
-    uv run python -m gene.log_view PATH --trace       # full trace per turn
-    uv run python -m gene.log_view PATH --turn N      # one turn (negatives ok)
-    uv run python -m gene.log_view PATH --tail K      # last K turns
+    uv run python -m gene.agent.log_view PATH               # index / in / out per turn
+    uv run python -m gene.agent.log_view PATH --trace       # full trace per turn
+    uv run python -m gene.agent.log_view PATH --turn N      # one turn (negatives ok)
+    uv run python -m gene.agent.log_view PATH --tail K      # last K turns
 """
 
 import argparse
@@ -15,7 +15,7 @@ import json
 import sys
 from pathlib import Path
 
-from gene.turn import Turn
+from gene.agent.turn import Turn
 
 _RULE_WIDTH = 60
 _MAX_CONTENT = 200

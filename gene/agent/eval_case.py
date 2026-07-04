@@ -1,7 +1,7 @@
 """Types and helpers for eval case suites.
 
-Case suites live in `gene.eval_cases.*` and depend only on this module —
-never on the runner in `gene.evals`. Keeping suites as pure data avoids
+Case suites live in `gene.agent.eval_cases.*` and depend only on this module —
+never on the runner in `gene.agent.evals`. Keeping suites as pure data avoids
 circular imports and lets tooling load a suite without pulling in the
 Anthropic client.
 """

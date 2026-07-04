@@ -13,8 +13,8 @@ line, giving a crash-safe, grep-friendly record across sessions.
 import json
 from pathlib import Path
 
-from gene.turn import Turn
-from gene.turn_runner import TurnRunner
+from gene.agent.turn import Turn
+from gene.agent.turn_runner import TurnRunner
 
 
 class Conversation:

@@ -1,4 +1,4 @@
-"""Unit tests for gene.llm_utils.
+"""Unit tests for gene.agent.llm_utils.
 
 No mocks — pure functions test directly, filesystem-touching code uses
 pytest's built-in `tmp_path`, and `Cache` is exercised end-to-end with
@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from gene.llm_utils import (
+from gene.agent.llm_utils import (
     Cache,
     LlmConfigError,
     build_request,
@@ -303,7 +303,7 @@ def test_cache_propagates_exception_and_does_not_store(tmp_path):
 
 def test_cache_verbose_logs_miss_and_hit(tmp_path, caplog):
     cache = _json_cache(tmp_path, verbose=True)
-    with caplog.at_level(logging.DEBUG, logger="gene.llm_utils"):
+    with caplog.at_level(logging.DEBUG, logger="gene.agent.llm_utils"):
         cache.call(lambda _: {"v": 1}, {"n": 1})  # miss
         cache.call(lambda _: {"v": 1}, {"n": 1})  # hit
 

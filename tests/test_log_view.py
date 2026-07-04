@@ -1,4 +1,4 @@
-"""Tests for gene.log_view.
+"""Tests for gene.agent.log_view.
 
 Uses the same Turn-fabrication helper as test_conversation.py — no API calls.
 """
@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 import pytest
 from anthropic.types import Message
 
-from gene.log_view import load_turns, main, render
-from gene.turn import Step, Turn
+from gene.agent.log_view import load_turns, main, render
+from gene.agent.turn import Step, Turn
 
 
 def _make_turn(user_input: str = "hi") -> Turn:

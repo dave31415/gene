@@ -9,11 +9,11 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
-from gene.config import get_llm_config
-from gene.conversation import Conversation
-from gene.llm import CachedAnthropic
-from gene.tools.calculator import CALCULATOR
-from gene.turn_runner import TurnRunner
+from gene.agent.config import get_llm_config
+from gene.agent.conversation import Conversation
+from gene.agent.llm import CachedAnthropic
+from gene.agent.tools.calculator import CALCULATOR
+from gene.agent.turn_runner import TurnRunner
 
 _LOG_AUTO = "__auto__"  # argparse sentinel: --log passed without a value
 

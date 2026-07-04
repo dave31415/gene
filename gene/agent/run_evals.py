@@ -19,9 +19,9 @@ from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
 
-from gene.eval_case import Report
-from gene.eval_configs import get_eval_configs
-from gene.evals import build_report, list_suites, load_suite, run
+from gene.agent.eval_case import Report
+from gene.agent.eval_configs import get_eval_configs
+from gene.agent.evals import build_report, list_suites, load_suite, run
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "eval_results"
 

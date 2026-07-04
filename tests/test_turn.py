@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 
 from anthropic.types import Message
 
-from gene.tool import ToolCall
-from gene.turn import Step, Turn, TurnError
+from gene.agent.tool import ToolCall
+from gene.agent.turn import Step, Turn, TurnError
 
 
 def _make_message(*, stop_reason: str = "end_turn") -> Message:

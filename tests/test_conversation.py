@@ -9,9 +9,9 @@ from datetime import UTC, datetime
 
 from anthropic.types import Message
 
-from gene.conversation import Conversation
-from gene.turn import Step, Turn
-from gene.turn_runner import TurnRunner
+from gene.agent.conversation import Conversation
+from gene.agent.turn import Step, Turn
+from gene.agent.turn_runner import TurnRunner
 
 
 def _make_turn(user_input: str = "hi") -> Turn:

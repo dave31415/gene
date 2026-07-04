@@ -18,8 +18,8 @@ from typing import Any
 from anthropic import Anthropic
 from anthropic.types import Message
 
-from gene.config import get_llm_config
-from gene.llm_utils import Cache, build_request, resolve_api_key
+from gene.agent.config import get_llm_config
+from gene.agent.llm_utils import Cache, build_request, resolve_api_key
 
 log = logging.getLogger(__name__)
 

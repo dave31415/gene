@@ -1,8 +1,8 @@
 """Eval runner: load a case suite, send each prompt through `CachedAnthropic`,
 report pass/fail with token and timing stats.
 
-Case suites live in `gene.eval_cases.<name>` and expose `CASES: list[Case]`.
-Run one with `uv run python -m gene.evals --suite <name> [--model <tag>]`.
+Case suites live in `gene.agent.eval_cases.<name>` and expose `CASES: list[Case]`.
+Run one with `uv run python -m gene.agent.evals --suite <name> [--model <tag>]`.
 """
 
 import argparse
@@ -11,9 +11,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from gene.config import get_llm_config
-from gene.eval_case import Case, Report, Result
-from gene.llm import CachedAnthropic
+from gene.agent.config import get_llm_config
+from gene.agent.eval_case import Case, Report, Result
+from gene.agent.llm import CachedAnthropic
 
 
 def run(
@@ -68,13 +68,13 @@ def print_report(report: Report) -> None:
 
 
 def load_suite(name: str) -> list[Case]:
-    """Dynamically import `gene.eval_cases.<name>` and return its `CASES` list."""
-    module = importlib.import_module(f"gene.eval_cases.{name}")
+    """Dynamically import `gene.agent.eval_cases.<name>` and return its `CASES` list."""
+    module = importlib.import_module(f"gene.agent.eval_cases.{name}")
     return module.CASES
 
 
 def list_suites() -> list[str]:
-    """Enumerate every `.py` file under `gene/eval_cases/` (except `__init__`)."""
+    """Enumerate every `.py` file under `gene/agent/eval_cases/` (except `__init__`)."""
     pkg_dir = Path(__file__).resolve().parent / "eval_cases"
     return sorted(p.stem for p in pkg_dir.glob("*.py") if p.name != "__init__.py")
 
@@ -84,7 +84,7 @@ def main() -> None:
     parser.add_argument(
         "--suite",
         default="basic",
-        help="Suite name under gene.eval_cases (default: basic)",
+        help="Suite name under gene.agent.eval_cases (default: basic)",
     )
     parser.add_argument(
         "--model",

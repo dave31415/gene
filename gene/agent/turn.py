@@ -21,7 +21,7 @@ from typing import Any, NamedTuple
 
 from anthropic.types import Message
 
-from gene.tool import ToolCall
+from gene.agent.tool import ToolCall
 
 
 def _tool_call_to_dict(tc: ToolCall) -> dict[str, Any]:

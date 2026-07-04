@@ -9,7 +9,7 @@ Messages API expects `tool_result` content as text).
 import operator
 from typing import Any
 
-from gene.tool import Tool
+from gene.agent.tool import Tool
 
 _OPS = {
     "add": operator.add,
