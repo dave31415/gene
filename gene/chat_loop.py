@@ -6,6 +6,8 @@ Wires a `TurnRunner` (with the calculator tool by default) into a
 """
 
 import argparse
+from datetime import datetime
+from pathlib import Path
 
 from gene.config import get_llm_config
 from gene.conversation import Conversation
@@ -13,17 +15,21 @@ from gene.llm import CachedAnthropic
 from gene.tools.calculator import CALCULATOR
 from gene.turn_runner import TurnRunner
 
+_LOG_AUTO = "__auto__"  # argparse sentinel: --log passed without a value
+
 
 def chat_loop(
     model: str = "sonnet",
     system: str | None = None,
     verbose: bool = False,
+    log_path: Path | str | None = None,
 ) -> None:
     """Interactive REPL. /quit or Ctrl-D to exit."""
     llm = CachedAnthropic(config=get_llm_config(model=model))
     runner = TurnRunner(llm=llm, tools=[CALCULATOR])
-    conv = Conversation(runner, system=system)
-    print(f"Chat started (model={model}, tools=[calculator]). /quit to exit.\n")
+    conv = Conversation(runner, system=system, log_path=log_path)
+    log_note = f", log={log_path}" if log_path else ""
+    print(f"Chat started (model={model}, tools=[calculator]{log_note}). /quit to exit.\n")
 
     while True:
         try:
@@ -55,5 +61,22 @@ if __name__ == "__main__":
         action="store_true",
         help="Print turn summary (steps, tools, tokens) after each response.",
     )
+    parser.add_argument(
+        "--log",
+        nargs="?",
+        const=_LOG_AUTO,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Log turns as JSONL. Bare --log auto-generates "
+            "logs/chat-{YYYYMMDD-HHMMSS}.jsonl; --log PATH uses PATH."
+        ),
+    )
     args = parser.parse_args()
-    chat_loop(model=args.model, system=args.system, verbose=args.verbose)
+
+    log_path = args.log
+    if log_path == _LOG_AUTO:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_path = f"logs/chat-{ts}.jsonl"
+
+    chat_loop(model=args.model, system=args.system, verbose=args.verbose, log_path=log_path)

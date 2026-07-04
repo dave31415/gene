@@ -152,7 +152,7 @@ class Turn(NamedTuple):
         return sum(s.api_seconds for s in self.steps)
 
     def summary(self) -> str:
-        """One-line human summary. For chat_loop debugging or logs."""
+        """One-line stats summary. For chat_loop --verbose."""
         tool_names = [tc.name for s in self.steps for tc in s.tool_calls]
         tools_str = f", tools={tool_names}" if tool_names else ""
         cache_hits = sum(1 for s in self.steps if s.cache_hit)
@@ -189,4 +189,6 @@ class Turn(NamedTuple):
                 f"  error: {self.error.type}: {self.error.message} "
                 f"(step_index={self.error.step_index})"
             )
+        if self.text:
+            lines.append(f"  → {self.text!r}")
         return "\n".join(lines)
