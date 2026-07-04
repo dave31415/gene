@@ -1,0 +1,23 @@
+{
+  "haiku": {
+    "expected_total_seconds": 4.856,
+    "per_suite_mean": {
+      "arithmetic": 2.332,
+      "basic": 2.524
+    }
+  },
+  "opus": {
+    "expected_total_seconds": 10.503,
+    "per_suite_mean": {
+      "arithmetic": 4.894,
+      "basic": 5.609
+    }
+  },
+  "sonnet": {
+    "expected_total_seconds": 7.567,
+    "per_suite_mean": {
+      "arithmetic": 3.736,
+      "basic": 3.831
+    }
+  }
+}

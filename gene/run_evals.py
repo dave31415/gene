@@ -13,6 +13,7 @@ import argparse
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean, stdev
 from typing import Any
 
 from gene.eval_case import Report
@@ -99,6 +100,88 @@ def build_suite_summary(cells: list[dict]) -> dict[str, Any]:
         }
         for cell in cells
     }
+
+
+def _stats(samples: list[float]) -> dict[str, Any]:
+    """Summary stats over a list of timing samples. Empty→count=0 only."""
+    if not samples:
+        return {"count": 0}
+    return {
+        "count": len(samples),
+        "mean": round(mean(samples), 3),
+        "stddev": round(stdev(samples), 3) if len(samples) > 1 else 0.0,
+        "min": round(min(samples), 3),
+        "max": round(max(samples), 3),
+    }
+
+
+def build_config_timing_summary(rows: list[dict]) -> dict[str, Any]:
+    """Roll up one config's timing history (list of JSONL rows) into stats."""
+    case_names: set[str] = set()
+    for r in rows:
+        case_names.update(r["cases"].keys())
+    return {
+        "runs": len(rows),
+        "cases": {
+            name: _stats([r["cases"][name] for r in rows if name in r["cases"]])
+            for name in sorted(case_names)
+        },
+        "total_seconds": _stats([r["total_seconds"] for r in rows]),
+    }
+
+
+def build_suite_timing_summary(suite_dir: Path) -> dict[str, Any]:
+    """Read every `<config>.timings.jsonl` in a suite dir, keyed by config."""
+    result: dict[str, Any] = {}
+    for path in sorted(suite_dir.glob("*.timings.jsonl")):
+        config_name = path.name.removesuffix(".timings.jsonl")
+        rows = [
+            json.loads(line) for line in path.read_text().splitlines() if line.strip()
+        ]
+        if rows:
+            result[config_name] = build_config_timing_summary(rows)
+    return result
+
+
+def build_top_timing_summary(results_dir: Path) -> dict[str, Any]:
+    """Aggregate timing across all suites, keyed by config. `expected_total_seconds`
+    is the sum of per-suite mean totals — how long one full matrix run should take."""
+    per_suite: dict[str, dict] = {}
+    for suite_dir in sorted(p for p in results_dir.iterdir() if p.is_dir()):
+        suite_summary = build_suite_timing_summary(suite_dir)
+        if suite_summary:
+            per_suite[suite_dir.name] = suite_summary
+
+    configs: set[str] = set()
+    for suite_configs in per_suite.values():
+        configs.update(suite_configs.keys())
+
+    top: dict[str, Any] = {}
+    for config in sorted(configs):
+        suite_means = {
+            suite: cfgs[config]["total_seconds"]["mean"]
+            for suite, cfgs in per_suite.items()
+            if config in cfgs
+        }
+        top[config] = {
+            "expected_total_seconds": round(sum(suite_means.values()), 3),
+            "per_suite_mean": suite_means,
+        }
+    return top
+
+
+def write_timing_summaries(results_dir: Path) -> None:
+    """Rebuild every timing summary from the JSONL files on disk."""
+    for suite_dir in sorted(p for p in results_dir.iterdir() if p.is_dir()):
+        if not list(suite_dir.glob("*.timings.jsonl")):
+            continue
+        suite_summary = build_suite_timing_summary(suite_dir)
+        (suite_dir / "timings_summary.json").write_text(
+            json.dumps(suite_summary, indent=2) + "\n"
+        )
+    top = build_top_timing_summary(results_dir)
+    if top:
+        (results_dir / "timings_summary.json").write_text(json.dumps(top, indent=2) + "\n")
 
 
 def build_top_summary(all_cells: list[dict]) -> dict[str, Any]:
@@ -193,6 +276,9 @@ def main() -> None:
         top_summary_path.write_text(
             json.dumps(build_top_summary(cells), indent=2) + "\n"
         )
+
+    if args.no_cache:
+        write_timing_summaries(RESULTS_DIR)
 
     mode = "saved to baseline" if args.save else "diff only (no writes)"
     print(f"\n=== done: {changed}/{len(cells)} cells changed | mode: {mode} ===")
