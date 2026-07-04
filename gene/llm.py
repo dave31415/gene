@@ -77,13 +77,14 @@ class CachedAnthropic:
         content blocks: text, image, tool_use, tool_result). The simplest form
         is `[{"role": "user", "content": "hello"}]`. First turn must be "user".
 
-        `meta` currently holds `{"cache_hit": bool}` and is the extension point
-        for future per-call observability (wall-clock, request bytes, etc.)
-        without another signature break.
+        `meta` holds `{"cache_hit": bool, "request": dict}` — the request is
+        the exact dict sent to the API (or looked up in cache), so callers
+        recording observability don't have to reconstruct it. Meta is the
+        extension point for future per-call info without another signature break.
         """
         request = build_request(self.config, messages, system, tools, tool_choice)
         msg, cache_hit = self.cache.call(self._call_api, request)
-        return msg, {"cache_hit": cache_hit}
+        return msg, {"cache_hit": cache_hit, "request": request}
 
 
 def print_llm_response(msg: Message) -> None:

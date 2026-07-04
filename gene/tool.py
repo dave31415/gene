@@ -18,6 +18,7 @@ class Tool(NamedTuple):
 
 
 class ToolCall(NamedTuple):
+    tool_use_id: str
     name: str
     input: dict[str, Any]
     output: str

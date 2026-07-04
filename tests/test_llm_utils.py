@@ -185,8 +185,10 @@ def test_cache_miss_then_hit_only_calls_func_once(tmp_path):
         return {"v": arg["n"] * 2}
 
     cache = _json_cache(tmp_path)
-    assert cache.call(double, {"n": 5}) == {"v": 10}
-    assert cache.call(double, {"n": 5}) == {"v": 10}
+    v1, hit1 = cache.call(double, {"n": 5})
+    v2, hit2 = cache.call(double, {"n": 5})
+    assert v1 == v2 == {"v": 10}
+    assert (hit1, hit2) == (False, True)
     assert calls == [{"n": 5}]
 
 
@@ -243,7 +245,9 @@ def test_cache_persists_across_instances(tmp_path):
     c1.call(f, {"n": 42})
 
     c2 = _json_cache(tmp_path)
-    assert c2.call(f, {"n": 42}) == {"v": 42}
+    value, hit = c2.call(f, {"n": 42})
+    assert value == {"v": 42}
+    assert hit is True
     assert calls == [{"n": 42}]  # second Cache reused the on-disk entry
 
 
@@ -270,11 +274,18 @@ def test_cache_deserialize_returns_fresh_object(tmp_path):
     original = {"v": [1, 2, 3]}
     cache = _json_cache(tmp_path)
     cache.call(lambda _: original, {"n": 1})
-    hit = cache.call(lambda _: original, {"n": 1})
+    value, was_hit = cache.call(lambda _: original, {"n": 1})
 
-    assert hit == original
-    assert hit is not original  # went through serialize/deserialize
-    assert hit["v"] is not original["v"]
+    assert was_hit is True
+    assert value == original
+    assert value is not original  # went through serialize/deserialize
+    assert value["v"] is not original["v"]
+
+
+def test_cache_reports_miss_when_use_cache_false(tmp_path):
+    cache = _json_cache(tmp_path, use_cache=False)
+    _, hit = cache.call(lambda arg: {"v": 1}, {"n": 1})
+    assert hit is False
 
 
 def test_cache_propagates_exception_and_does_not_store(tmp_path):

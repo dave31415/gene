@@ -13,7 +13,7 @@ from gene.turn import Turn, TurnRunner
 
 
 class Conversation:
-    """One chat session. Owns history; delegates each turn to a `TurnRunner`."""
+    """One chat session. Stateful. Owns history; delegates each turn to a `TurnRunner`."""
 
     def __init__(self, runner: TurnRunner, system: str | None = None):
         self.runner = runner
