@@ -24,6 +24,14 @@ from anthropic.types import Message
 from gene.tool import ToolCall
 
 
+def _tool_call_to_dict(tc: ToolCall) -> dict[str, Any]:
+    return tc._asdict()
+
+
+def _tool_call_from_dict(d: dict[str, Any]) -> ToolCall:
+    return ToolCall(**d)
+
+
 class TurnError(NamedTuple):
     """Recorded when the turn loop terminated because of an exception."""
 
@@ -46,6 +54,35 @@ class Step(NamedTuple):
     started_at: datetime
     completed_at: datetime
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "request": self.request,
+            "response": self.response.model_dump(mode="json"),
+            "tool_calls": [_tool_call_to_dict(tc) for tc in self.tool_calls],
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "api_seconds": self.api_seconds,
+            "seconds": self.seconds,
+            "cache_hit": self.cache_hit,
+            "started_at": self.started_at.isoformat(),
+            "completed_at": self.completed_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Step":
+        return cls(
+            request=d["request"],
+            response=Message.model_validate(d["response"]),
+            tool_calls=[_tool_call_from_dict(tc) for tc in d["tool_calls"]],
+            input_tokens=d["input_tokens"],
+            output_tokens=d["output_tokens"],
+            api_seconds=d["api_seconds"],
+            seconds=d["seconds"],
+            cache_hit=d["cache_hit"],
+            started_at=datetime.fromisoformat(d["started_at"]),
+            completed_at=datetime.fromisoformat(d["completed_at"]),
+        )
+
 
 class Turn(NamedTuple):
     """One user prompt → one final assistant response."""
@@ -59,6 +96,37 @@ class Turn(NamedTuple):
     error: TurnError | None
     started_at: datetime
     completed_at: datetime
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "user_input": self.user_input,
+            "steps": [s.to_dict() for s in self.steps],
+            "new_messages": self.new_messages,
+            "final_message": (
+                self.final_message.model_dump(mode="json") if self.final_message else None
+            ),
+            "terminal_reason": self.terminal_reason,
+            "error": self.error._asdict() if self.error else None,
+            "started_at": self.started_at.isoformat(),
+            "completed_at": self.completed_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "Turn":
+        return cls(
+            id=d["id"],
+            user_input=d["user_input"],
+            steps=[Step.from_dict(s) for s in d["steps"]],
+            new_messages=d["new_messages"],
+            final_message=(
+                Message.model_validate(d["final_message"]) if d["final_message"] else None
+            ),
+            terminal_reason=d["terminal_reason"],
+            error=TurnError(**d["error"]) if d["error"] else None,
+            started_at=datetime.fromisoformat(d["started_at"]),
+            completed_at=datetime.fromisoformat(d["completed_at"]),
+        )
 
     @property
     def text(self) -> str:

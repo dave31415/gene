@@ -126,7 +126,11 @@ class TurnRunner:
             steps.append(step)
             # Mirror the assistant response (including any tool_use blocks)
             # into the API view so the next request stays consistent.
-            new_messages.append({"role": "assistant", "content": step.response.content})
+            # Convert content blocks to plain dicts via `model_dump(mode="json")`
+            # so `new_messages` is fully JSON-native — no Pydantic types leak
+            # into the history the caller splices back in.
+            content = [b.model_dump(mode="json") for b in step.response.content]
+            new_messages.append({"role": "assistant", "content": content})
 
             # Non-tool_use stop reason means the model is done talking this turn.
             if step.response.stop_reason != "tool_use":
@@ -223,4 +227,3 @@ class TurnRunner:
             is_error=is_error,
             seconds=time.perf_counter() - t0,
         )
-
