@@ -12,6 +12,36 @@ uv sync
 
 Put your Anthropic API key at `~/.config/ancestors/keys/anthropic`.
 
+## Genealogy
+
+Load a GEDCOM file into SQLite:
+
+```
+uv run python -m gene.genealogy.load <tag>
+```
+
+`<tag>` is the stem of a `.ged` file in `genealogy_data/` (gitignored —
+put your own family exports there). The parser goes through
+[ged4py](https://github.com/andy-z/ged4py); databases are written to
+`gene/genealogy/db/<tag>.sqlite` (also gitignored). Passing an unknown
+tag prints the available list.
+
+Chat with the agent scoped to one loaded family:
+
+```
+uv run python -m gene.genealogy.chat <tag>
+uv run python -m gene.genealogy.chat <tag> --ask "How many people are in this tree?"
+uv run python -m gene.genealogy.chat <tag> --log
+```
+
+The agent's only tool is `run_query`, a guarded SELECT-only wrapper over
+the SQLite DB (statement whitelist, ATTACH/PRAGMA blocked, 100-row cap,
+5s wall-clock timeout via `conn.interrupt()`). The live schema is
+reflected into the system prompt so the LLM writes SQL against the
+actual columns. Turn logs (`--log`) land in
+`logs/genealogy-<tag>-<timestamp>.jsonl` and open with `gene.agent.log_view`
+(below). Unknown / not-yet-loaded tags exit 2 with a clean error message.
+
 ## Scripts
 
 Interactive chat REPL (calculator tool wired in by default):
