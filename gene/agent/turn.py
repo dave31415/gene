@@ -21,6 +21,7 @@ from typing import Any, NamedTuple
 
 from anthropic.types import Message
 
+from gene.agent.ansi import paint
 from gene.agent.tool import ToolCall
 
 
@@ -30,6 +31,32 @@ def _tool_call_to_dict(tc: ToolCall) -> dict[str, Any]:
 
 def _tool_call_from_dict(d: dict[str, Any]) -> ToolCall:
     return ToolCall(**d)
+
+
+def _fmt_tool_call(tc: ToolCall) -> list[str]:
+    """Format one tool call for `trace()`.
+
+    Single-line when nothing in the input has embedded newlines; otherwise
+    multi-line — each newline-bearing value gets its own indented block so
+    long SQL etc. stays legible.
+    """
+    mark = paint("ERR ", "red", "bold") if tc.is_error else "    "
+    name = paint(tc.name, "green")
+    trailer = paint(f"[{tc.tool_use_id}]", "dim")
+    multi = any(isinstance(v, str) and "\n" in v for v in tc.input.values())
+    if not multi:
+        return [f"    {mark}{name}({tc.input}) → {tc.output}  {trailer}"]
+
+    prefix = f"    {mark}"  # keeps closing ')' aligned with the opening name
+    out = [f"{prefix}{name}("]
+    for k, v in tc.input.items():
+        if isinstance(v, str) and "\n" in v:
+            out.append(f"{prefix}  {k}=")
+            out.extend(f"{prefix}    {line}" for line in v.strip("\n").splitlines())
+        else:
+            out.append(f"{prefix}  {k}={v!r}")
+    out.append(f"{prefix}) → {tc.output}  {trailer}")
+    return out
 
 
 class TurnError(NamedTuple):
@@ -169,25 +196,30 @@ class Turn(NamedTuple):
     def trace(self) -> str:
         """Multi-line per-step dump. For verbose debugging."""
         lines = [
-            f"Turn {self.id[:8]}: {self.user_input!r}",
-            f"  started: {self.started_at.isoformat()}",
-            f"  completed: {self.completed_at.isoformat()}",
+            f"Turn {paint(self.id[:8], 'bold')}: {self.user_input!r}",
+            paint(f"  started:   {self.started_at.isoformat()}", "dim"),
+            paint(f"  completed: {self.completed_at.isoformat()}", "dim"),
         ]
         for i, s in enumerate(self.steps):
+            if i > 0:
+                lines.append(paint("  " + "-" * 58, "dim"))
             hit = "hit" if s.cache_hit else "miss"
             lines.append(
-                f"  step {i}: {s.response.stop_reason} | "
+                f"  {paint(f'step {i}:', 'cyan', 'bold')} {s.response.stop_reason} | "
                 f"{s.input_tokens} in / {s.output_tokens} out | "
                 f"{s.seconds:.2f}s total ({s.api_seconds:.2f}s api) | cache {hit}"
             )
             for tc in s.tool_calls:
-                mark = "ERR " if tc.is_error else "    "
-                lines.append(f"    {mark}{tc.name}({tc.input}) → {tc.output}  [{tc.tool_use_id}]")
-        lines.append(f"  terminal: {self.terminal_reason}")
+                lines.extend(_fmt_tool_call(tc))
+        reason_color = "red" if self.terminal_reason != "end_turn" else "green"
+        lines.append(f"  terminal: {paint(self.terminal_reason, reason_color)}")
         if self.error is not None:
             lines.append(
-                f"  error: {self.error.type}: {self.error.message} "
-                f"(step_index={self.error.step_index})"
+                paint(
+                    f"  error: {self.error.type}: {self.error.message} "
+                    f"(step_index={self.error.step_index})",
+                    "red",
+                )
             )
         if self.text:
             lines.append(f"  → {self.text!r}")

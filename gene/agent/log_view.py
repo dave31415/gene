@@ -15,6 +15,7 @@ import json
 import sys
 from pathlib import Path
 
+from gene.agent.ansi import paint
 from gene.agent.turn import Turn
 
 _RULE_WIDTH = 60
@@ -22,7 +23,7 @@ _MAX_CONTENT = 200
 
 
 def _header(index: int) -> str:
-    return f" Turn number: {index} ".center(_RULE_WIDTH, "-")
+    return paint(f" Turn number: {index} ".center(_RULE_WIDTH, "="), "bold", "cyan")
 
 
 def load_turns(path: Path) -> list[Turn]:
@@ -47,7 +48,9 @@ def _truncate(s: str, n: int = _MAX_CONTENT) -> str:
 def _body_default(turn: Turn) -> str:
     """Content-focused body: user input + assistant reply, truncated."""
     out = turn.text or f"(no reply — reason={turn.terminal_reason})"
-    return f"  In:  {_truncate(turn.user_input)}\n  Out: {_truncate(out)}"
+    in_label = paint("In: ", "cyan")
+    out_label = paint("Out:", "cyan")
+    return f"  {in_label} {_truncate(turn.user_input)}\n  {out_label} {_truncate(out)}"
 
 
 def render(indexed: list[tuple[int, Turn]], trace: bool) -> str:
