@@ -222,5 +222,7 @@ class Turn(NamedTuple):
                 )
             )
         if self.text:
-            lines.append(f"  → {self.text!r}")
+            text_lines = self.text.strip("\n").splitlines()
+            lines.append(f"  → {text_lines[0]}")
+            lines.extend(f"    {line}" for line in text_lines[1:])
         return "\n".join(lines)
