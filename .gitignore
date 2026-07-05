@@ -21,3 +21,4 @@ logs/
 # Genealogy data
 genealogy_data/
 *.ged
+gene/genealogy/db/
