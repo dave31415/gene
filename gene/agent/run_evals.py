@@ -21,7 +21,7 @@ from typing import Any
 
 from gene.agent.eval_case import Report
 from gene.agent.eval_configs import get_eval_configs
-from gene.agent.evals import build_report, list_suites, load_suite, run
+from gene.agent.evals import build_report, list_suites, load_suite, run, skip_reason
 
 RESULTS_DIR = Path(__file__).resolve().parent.parent / "eval_results"
 
@@ -38,6 +38,8 @@ def cell_to_dict(report: Report, suite: str, config_name: str) -> dict[str, Any]
                 "passed": r.passed,
                 "input_tokens": r.input_tokens,
                 "output_tokens": r.output_tokens,
+                "steps": r.steps,
+                "tool_calls": r.tool_calls,
             }
             for r in report.results
         ],
@@ -87,6 +89,12 @@ def diff_cell(current: dict, baseline: dict | None) -> tuple[str, list[str]]:
         if cur["output_tokens"] != base["output_tokens"]:
             diffs.append(
                 f"    tokens  {name}: out {base['output_tokens']} → {cur['output_tokens']}"
+            )
+        if cur.get("steps", 1) != base.get("steps", 1):
+            diffs.append(f"    steps   {name}: {base.get('steps')} → {cur['steps']}")
+        if cur.get("tool_calls", 0) != base.get("tool_calls", 0):
+            diffs.append(
+                f"    tools   {name}: {base.get('tool_calls')} → {cur['tool_calls']}"
             )
     return status, diffs
 
@@ -224,16 +232,20 @@ def main() -> None:
     cells: list[dict] = []
     changed = 0
 
-    for suite in suites:
-        cases = load_suite(suite)
+    for suite_name in suites:
+        suite = load_suite(suite_name)
+        reason = skip_reason(suite)
+        if reason is not None:
+            print(f"\n>> {suite_name} — SKIP: {reason}")
+            continue
         for config_name, config in configs.items():
-            print(f"\n>> {suite} × {config_name} ({config['model']})")
-            results = run(cases, config=config, use_cache=not args.no_cache)
+            print(f"\n>> {suite_name} × {config_name} ({config['model']})")
+            results = run(suite, config=config, use_cache=not args.no_cache)
             report = build_report(results, config=config)
-            current = cell_to_dict(report, suite=suite, config_name=config_name)
+            current = cell_to_dict(report, suite=suite_name, config_name=config_name)
             cells.append(current)
 
-            cell_path = RESULTS_DIR / suite / f"{config_name}.json"
+            cell_path = RESULTS_DIR / suite_name / f"{config_name}.json"
             baseline = None
             if cell_path.exists():
                 baseline = json.loads(cell_path.read_text())
@@ -246,7 +258,7 @@ def main() -> None:
                 changed += 1
 
             if args.no_cache:
-                timings_path = RESULTS_DIR / suite / f"{config_name}.timings.jsonl"
+                timings_path = RESULTS_DIR / suite_name / f"{config_name}.timings.jsonl"
                 timings_path.parent.mkdir(parents=True, exist_ok=True)
                 row = {
                     "timestamp": datetime.now(UTC).isoformat(),

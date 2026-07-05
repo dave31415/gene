@@ -58,15 +58,18 @@ def build_conversation(
     tag: str,
     model: str = "sonnet",
     log_path: Path | str | None = None,
+    llm: CachedAnthropic | None = None,
 ) -> Conversation:
     """Assemble a Conversation scoped to the given family DB.
 
     Opens the SQLite DB read-only, reflects its schema into the system
     prompt, and wires `run_query` as the only tool. `max_steps=20` caps
-    tool-call rounds per turn.
+    tool-call rounds per turn. Pass a prebuilt `llm` (e.g. from evals) to
+    override the default cached client; `model` is ignored in that case.
     """
     conn = open_db(tag)
     system = build_system_prompt(tag, conn)
-    llm = CachedAnthropic(config=get_llm_config(model=model))
+    if llm is None:
+        llm = CachedAnthropic(config=get_llm_config(model=model))
     runner = TurnRunner(llm=llm, tools=[query_tool.make_tool(conn)], max_steps=_MAX_STEPS)
     return Conversation(runner, system=system, log_path=log_path)
