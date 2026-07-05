@@ -5,8 +5,8 @@
     python -m gene.genealogy.chat bronte --log
 
 The tag must correspond to a SQLite DB built by `gene.genealogy.load`.
-Passing an unknown tag surfaces a FileNotFoundError with the load
-command in the message.
+Unknown tags and not-yet-loaded tags both exit 2 with a clean stderr
+message (no traceback) — see the __main__ block.
 
 Mirrors `gene.agent.chat_loop` — the difference is the required `tag`
 positional and the genealogy-specific factory that wires the run_query
@@ -14,10 +14,12 @@ tool + schema-aware system prompt.
 """
 
 import argparse
+import sys
 from datetime import datetime
 from pathlib import Path
 
 from gene.genealogy.agent import build_conversation
+from gene.genealogy.config import available_tags
 
 _LOG_AUTO = "__auto__"
 
@@ -98,10 +100,27 @@ if __name__ == "__main__":
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
         log_path = f"logs/genealogy-{args.tag}-{ts}.jsonl"
 
-    chat(
-        tag=args.tag,
-        model=args.model,
-        verbose=args.verbose,
-        ask=args.ask,
-        log_path=log_path,
-    )
+    try:
+        chat(
+            tag=args.tag,
+            model=args.model,
+            verbose=args.verbose,
+            ask=args.ask,
+            log_path=log_path,
+        )
+    except FileNotFoundError:
+        # Distinguish "not a family at all" from "family exists but hasn't
+        # been loaded yet" so the recovery hint is actionable.
+        tags = available_tags()
+        if args.tag not in tags:
+            print(
+                f"error: unknown family tag {args.tag!r}. available: {tags}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"error: family {args.tag!r} not built yet. "
+                f"run: python -m gene.genealogy.load {args.tag}",
+                file=sys.stderr,
+            )
+        sys.exit(2)
