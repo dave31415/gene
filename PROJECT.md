@@ -1,97 +1,132 @@
 Introduction
 ----------------
-This project is an experiment in agentic AI. The goal is to discover a useful and flexible 
-approach that can be used for multiple projects and multiple types of agentic programming.
 
-A specific use case was added, but it is loosely coupled to the core agentic code, which is 
-meant for eventual broader use. This is performing queries in genealogy. This is discussed more 
-below.
+This project is a minimal from-scratch agentic-AI harness built directly on
+the Anthropic SDK, driven by a stateless `Turn` value object and exercised
+against a genealogy Q&A use case. The goal is to discover a small set of
+flexible core patterns that generalise to other agentic problems, not to
+build a universal framework.
 
-One choice was to avoid currently popular frameworks and libraries such as LangChain and LangGraph.
-The point of this was multifold.
+The specific use case — programmatic queries over GEDCOM family-tree data —
+is loosely coupled to the core. The `gene.agent` package is domain-agnostic;
+`gene.genealogy` uses it as a library.
 
-One reason was that they products take away a lot of flexibility and coax you into a particular 
-pattern which can be limiting. They also perform so many actions for you that you don't understand 
-what is really happening. This might limit your ability to control and explain what is happening. 
-It might prevent you from truly fixing problems that arise. It also simply reduces the
-learning that occurs. Finally, it's likely that we are too early into agentic AI and such 
-frameworks are unlikely to remain popular for long.
+The deliberate choice to avoid LangChain, LangGraph, and similar frameworks
+comes down to control. Those tools coax you into a particular pattern, do
+a lot of work invisibly, and — since agentic AI is still very early — are
+likely to be superseded. Building the harness by hand keeps the surface
+area small enough to understand, easy to instrument, and cheap to change
+when the right patterns come into focus.
 
-For these reasons, I decided to build this myself using minimal dependencies. This kind of application
-is often called a harness or agentic program.
+The application code — the loop, the tool dispatch, the guardrails — is
+usually called a *harness*. The LLM outputs tokens; the harness decides
+what those tokens mean. Nothing else has authority to run a tool, mutate
+state, or decide when the loop terminates. Being able to say exactly what
+happens on each turn is the point.
 
-Another main goal is not to discover a universal approach to all agentic business problems but to discover some
-core approaches that will be useful for particular ones I might face; problems that are challenging and, to me, 
-more interesting, such as some of the problems encountered in robotics.
-
-Dependencies
+Design principles
 ------------------
 
-The main dependency is the Anthropic Python package. This brings you the basic SDK that handles 
-the following concerns.
+High-level goals:
 
-* Enables the use of the frontier LLMs (obviously not building those myself)
-* Wraps the LLM models in a class that makes http requests to the anthropic models on their cloud
-* Uses the Anthropic tool chaining protocol which allows you to inform the model of local tools 
-  that are available, allows it to suggest calls to those in a way that can be captured and run before 
-  handing the results back to the LLM for further processing
+* **Simplicity** — agentic AI is complex enough already; don't add more.
+* **Understandability** — the code should always tell you what it's doing.
+* **Flexibility** — reuse a small set of pieces in different ways as harder
+  problems come into scope.
 
-The tool chaining mechanism allows for construction of loops. The looping and control over it happens
-on the application side, tis harness. The model side where the LLM lives contains no statefulness. 
-It also does not actually run tools. The agentic harness (my application code) does that. LLMs only 
-output tokens. The harness interprets those however it wishes. It chooses whether to run tools. I can 
-apply whatever checks, constraints, guardrails and security it needs. Being able to do this explicitly 
-is another reason to avoid large frameworks.
+These drive lower-level needs:
 
-There a few other minor dependencies added. Pydantic is used in a few places but is also already a 
-dependency of anthropic packages. The Python package disckcache is used to cache model calls locally.
-This uses SQLite internally is basically a simple key-value store made specifically for caching. SQLite
-is also used for the genealogy use case. The ged4py is a python package for reading GEDCOM files which
-is a file format for genealogical data.
+* **Observability** — must fall out of the design, not be bolted on later.
+* **Testability** — unit tests, integration tests, and eval suites that
+  detect any drift in behaviour from a code or config change.
+* **Rein in statefulness** — most of the code stays functional
+  (referentially transparent). The few genuinely stateful pieces are
+  isolated and obvious.
+
+Concrete choices that follow:
+
+* Cache every LLM call by request payload; a re-run of an eval is
+  deterministic and near-free.
+* Make `Turn` a stateless value object holding the ordered `Step` list,
+  final message, tokens, and terminal reason.
+* Push conversation history, memory, and other stateful concerns to
+  higher layers that compose stateless Turns.
+* Anthropic-only for now. LiteLLM-style adapters are half a day's work
+  and add complexity that doesn't buy anything at this stage. Anthropic's
+  three tiers already give the accuracy / speed / cost trade-off the
+  eval matrix needs.
+* CLI-only. Visualisation or a UI would freeze the design too early.
+
+Architecture
+--------------
+
+The fundamental unit is a `Turn`: one user query in, one final answer
+out, with any number of intermediate `Step`s in between. Each Step is
+one round-trip to the LLM plus the tool calls it triggered, with token
+counts, timings, request/response payloads, and a cache-hit flag.
+
+A Turn is a plain value object. Given the same input and a warm LLM
+cache, it's referentially transparent — same input, same Turn. This one
+choice is what makes everything else cheap:
+
+* **Caching** — `CachedAnthropic` keys every request by its full JSON
+  payload; a repeat call returns the exact stored `Message`. Eval re-runs
+  hit disk, not the API.
+* **Logging** — a chat session log is just a JSONL file with one Turn per
+  line. No bespoke tracing subsystem.
+* **Evals** — a `TurnCase` can check not only the final text but the
+  *shape* of the work: which tools ran, whether SQL had a `WHERE` clause,
+  how many steps it took to converge.
+* **Testing** — most of the codebase can be exercised with fabricated
+  Turn/Step/ToolCall values, no I/O.
+
+`Conversation` wraps Turn with the small amount of state a chat REPL
+needs: message history to hand back to the model on the next call. This
+is deliberately the *only* stateful layer above Turn, and it is the
+correct seam for introducing a smarter Memory later on.
+
+The package split follows the same principle. `gene.agent` is the
+library — Turn, Conversation, tool dispatch, evals runner, log viewer.
+`gene.genealogy` is a consumer that builds a genealogy-specific
+`Conversation` and `run_query` tool on top. The evals runner is
+domain-agnostic; it discovers suite modules by directory and duck-typed
+convention.
 
 First use case: Genealogy
 ---------------------------
 
-It doesn't make sense developing an agentic framework without at least a good use case, so I chose the
-following based on a hobby of mine: family genealogy. Geni.com is one of many genealogy websites where 
-you can download your family tree, if it exists. Such trees are build by both professional and 
-amateur genealogists. Sites like geni.com or ancestry.com are useful for browsing the tree or the data 
-on the web. But I wanted to do programmatic searches on the raw data. Furthermore, I wanted to use the
-power of LLMs to pick up where rules based code falls short or becomes tedious.
+Family genealogy is a personal hobby and the driving use case. Sites
+like geni.com and ancestry.com are fine for browsing, but the raw data
+is where the interesting questions live — the kind rules-based code
+handles clumsily and an LLM handles well.
 
-The data can be exported into GEDCOM files, a text based exchange format that is basically a list of 
-facts and relations arranged into hierarchies. It looks like this:
+GEDCOM is the standard export format: a hierarchical text file of facts
+and relations that looks like this:
 
-0 @I75@ INDI
-1 NAME Waldemar  //
-1 SEX M
-1 BIRT
-2 DATE        1868
-1 DEAT
-2 DATE        1879
-1 FAMC @F3@
-0 @I76@ INDI
-1 NAME Sophie of_Prussia //
-1 TITL Queen of Greece
-1 SEX F
+    0 @I75@ INDI
+    1 NAME Waldemar  //
+    1 SEX M
+    1 BIRT
+    2 DATE        1868
+    1 DEAT
+    2 DATE        1879
+    1 FAMC @F3@
+    0 @I76@ INDI
+    1 NAME Sophie of_Prussia //
+    1 TITL Queen of Greece
+    1 SEX F
 
-I have two GEDCOM files for my family (all blood relatives, limited in number by Geni) and director ancestors
-(e.g. all great-great-grandparents but no uncles, cousins, siblings etc.). I also have a few public
-GEDCOMs (English royal family, William Shakespeare Family, Bronte family, US Presidents etc.)
+The corpus includes two of my own family trees (all blood relatives
+capped by Geni; direct ancestors only in the second) plus a handful of
+public trees — English royals, Shakespeare, the Brontës, US Presidents.
 
-These GEDCOMs needs to be parsed and turned into some useful data structures that can be queried more easily. 
+Storage: `ged4py` parses the file, Pydantic models normalise it into 3NF,
+and the result loads into SQLite. SQLite fits the shape of the problem —
+small, write-once / read-many, preinstalled everywhere, no need for a
+cloud DB. SQL is also excellent LLM tool bait: models write good SQL,
+especially against simple schemas.
 
-Storage:
-
-I chose to use ged4py to read the GEDCOM files and then create some Pydantic objects in 3rd normal form; 
-and then load these into SQlite. A relational database has plenty of obvious advantages. SQLite is a 
-good choice since the data is small, write-once/read-many, is preinstalled most places, there is not 
-yet any need to support multiple users on the cloud etc.
-
-SQL is also a good language for LLM tool use as LLMs are excellent at writing SQL, especially on fairly simple
-data models. 
-
-There are currently 5 tables:
+Five tables cover the current model:
 
 * individuals
 * families
@@ -99,128 +134,194 @@ There are currently 5 tables:
 * individual_events
 * family_events
 
-The while schema with indices is currently only 45 lines of SQL code. It may grow as we add other information
-from the GEDCOM.
+The whole schema with indices is 45 lines of SQL — it may grow as more
+GEDCOM tags come into scope.
 
-When given a well-written system prompt including the tool defined around SQL and the database schema, 
-we build a genealogical agent around this core agent code which can answer questions like:
+Given the schema and a well-written system prompt, the genealogy agent
+answers questions like:
 
-"How many uncles does David Johnston have?"
+> "How many uncles does David Johnston have?"
 
-or (for the royal dataset)
+or, against the royal dataset:
 
-"Has there ever been a King of England that was born in Denmark? If so, did they have any children
-that became King or Queen?"
+> "Has there ever been a King of England born in Denmark? If so, did
+> they have any children who became King or Queen?"
 
-There are other types of queries that may require other tools beyond SQL search such as those better
-suited to walking a tree graph.
+Some questions are better served by tools that walk a tree graph rather
+than SQL. Adding those is a matter of registering another tool — the
+harness doesn't care.
 
-Design Characteristics
--------------------------
+How it works
+--------------
 
-The package gene has two subdirectories agent and genealogy. These are not yet separated into
-uv packages (or separate repos etc) but are roughly considered separate with genealogy depending 
-on agent but not vice versa. The genealogy directory treats agent like a library. This will likely 
-evolve in the future but keep loose coupling now is important for that.
+Test running:
 
-There are several high level goals for the design:
+Tests live in `tests/` and run with `uv run pytest`. Coverage spans the
+parts that don't hit the network: the Turn/Step model, the Conversation
+wrapper, the eval-case predicates, the eval-suite loader, the GEDCOM
+parser, the SQLite store, and the guarded SQL tool. Paths that would
+hit Anthropic or a real DB are deliberately excluded — the eval runner
+covers those with real LLM calls, cached where possible so re-runs are
+cheap.
 
-* Simplicity - Agentic AI applied to use cases can be complex enough on it's own. Don't add extra complexity
-* Understandability - You need to understand what your code is doing always
-* Flexibility - As you address harder parts of the problem or other hard problems, you will need to take 
-  some different approaches but want to try to reuse a number of flexible components in different ways
+The pattern is functional-core / imperative-shell: because Turn is a
+plain value object and `CachedAnthropic` can be swapped for a fake, most
+of the codebase can be exercised with fabricated messages and no I/O.
+Predicate tests, for instance, build fake Turn/Step/ToolCall values
+in-memory rather than driving the real agent.
 
-These drive some lower level needs:
+Loading genealogy data:
 
-* Observability - You need to make it easy to see what happened. This needs to drive the design not be added on later.
-* Testability - Unit test. Integration tests. Ability to run eval suites and see the effect of any code or 
-  configuration changes
-* Reign in or control statefulness - Statefulness is not entirely avoidable but you can limit it to a few obvious 
-  places and keep most of the code functional (referentially transparent). This aids understandability, and reduces 
-  complexity and makes testing easier.
+Drop a GEDCOM file into `genealogy_data/<tag>.ged` (gitignored). Run:
 
-These features and needs drove decisions such as the following:
-* Cache the LLM model calls to reduce non-determinism and handle the cache carefully
-* Make a "Turn" object, a fundamental building block, containing multiple LLM trips (Steps which 
-  can include tool calls) that is stateless (when LLMs are cached).
-* Push the state required for carrying on longer context-bound conversations and other modes of complex thinking 
-  to higher layers that use stateless Turns.
+    uv run python -m gene.genealogy.load <tag>
+
+The loader parses via `ged4py`, builds Pydantic models per row, and
+writes `gene/genealogy/db/<tag>.sqlite`. The DB path and data path are
+both resolved through `gene.genealogy.config.get_db_path(tag)` — a
+single seam that eval prechecks, the chat CLI, and future tooling all
+share, so "is this dataset installed?" is answered the same way
+everywhere. An unknown tag exits with a list of what's actually
+available.
+
+Running evals:
+
+Two runners share one contract. `gene.agent.evals` runs a directory of
+suites against a single model — quick feedback while iterating on a
+case or a prompt. `gene.agent.run_evals` runs every suite × every named
+config, diffs the result against a saved baseline, and (with `--save`)
+overwrites the baseline. That's what runs before merging a change: does
+the pass/fail matrix move? Do the token counts drift? Did any case that
+used to take 3 steps now take 5?
+
+A suite is any `.py` file in the given directory that exports `CASES`.
+For TurnCase suites it also exports `build_conversation(llm)` (a
+factory returning a fully-wired Conversation) and, optionally,
+`precheck()` returning a skip reason when data isn't available. The
+core runner imports nothing from any use case — it discovers all this
+by duck-typed convention. Adding a new domain means adding a new
+directory of suite modules, not touching the runner.
+
+The distinction between one-shot `Case` (just a prompt, check the text)
+and `TurnCase` (full agent loop, check the *shape* of the work) is
+deliberate. "Got the right answer" is often not enough — did the model
+filter in SQL or fetch everything and post-filter? Did it burn eight
+tool-call rounds when two would do? Those checks are only possible
+because Turn is a first-class value with step-level detail.
+
+Observability:
+
+Every LLM round-trip inside a Turn is captured as a Step, and the Turn
+itself holds the ordered step list, the terminal reason, the total
+tokens, and the final message. Logging a chat session is a matter of
+appending each Turn to a JSONL file — nothing bespoke. The
+`gene.agent.log_view` CLI reads those logs in either compact mode (one
+line per turn with user input and final answer) or `--trace` mode
+(every step with tool inputs, outputs, and timings), with ANSI colour
+when writing to a TTY.
+
+Observability isn't a separate subsystem — it falls out of the fact
+that the fundamental unit is a value object. Anything that can call the
+agent can also inspect exactly what happened.
+
+Model config:
+
+`gene.agent.config.get_model_name(tag)` maps short tags — `haiku`,
+`sonnet`, `opus` — to concrete Anthropic model names.
+`get_llm_config` returns the dict the LLM client wants: model,
+max_tokens, key dir, cache dir. This is the one place model names live,
+so bumping a model is a one-line change and nothing downstream has to
+know it happened.
+
+`get_eval_configs()` in `gene.agent.eval_configs` returns the named
+sweep — currently just the three model tags, but the shape supports
+tuned variants (e.g. `sonnet-cold` with a different max_tokens or
+thinking budget) without touching any runner code.
+
+API key config:
+
+The Anthropic API key sits at `~/.config/ancestors/keys/anthropic` —
+XDG-friendly, no dotenv, no environment variables shipped in the repo.
+The keys directory resolves through `XDG_CONFIG_HOME` if set, otherwise
+`~/.config`. The layout leaves room for additional providers later.
+
+Security / safety:
+
+The single tool exposed to the genealogy agent is `run_query`, a
+guarded wrapper around SQLite. Three defences stack:
+
+1. **Statement whitelist** — the first non-comment token must be
+   `SELECT` or `WITH`. Everything else is refused.
+2. **Keyword blacklist** — `ATTACH`, `PRAGMA`, and `LOAD_EXTENSION` are
+   refused even inside an otherwise-valid SELECT, since those are the
+   paths a model-authored query could use to escape the DB.
+3. **Wall-clock timeout** — a background thread calls
+   `conn.interrupt()` after five seconds, so a pathological Cartesian
+   product can't stall the loop.
+
+Results are capped at 100 rows to keep the LLM's context bounded on
+mistakes. These aren't a substitute for treating the DB as untrusted,
+but they raise the cost of a bad query from "corrupts state" to
+"returns an error message".
+
+The disk cache is content-addressed by the exact request payload, so
+cache poisoning would require write access to the local cache dir —
+not a threat the code needs to defend against.
+
+Caching and timings:
+
+The disk cache (via the `diskcache` package) is what makes eval runs
+cheap. Every LLM request is keyed by its full JSON payload; a repeat
+call returns the exact stored `Message` with `cache_hit=True` in the
+metadata. `run_evals --no-cache` bypasses the cache and records a
+timing sample per case per config into `<config>.timings.jsonl`, then
+rebuilds `timings_summary.json` files from the accumulated history — so
+latency numbers reflect real API round-trips, aggregated over many runs
+to smooth out variance.
+
+Log files are gitignored; eval baselines are committed except for
+`eval_results/gene/genealogy/`, since even case names in that tree leak
+family info.
+
+Dependencies
+--------------
+
+Kept intentionally small:
+
+* **anthropic** — official SDK for Claude models. Handles HTTP, message
+  formatting, and the tool-use protocol (model emits tool-call blocks;
+  the harness runs them and hands results back).
+* **pydantic** — used for GEDCOM row models and eval-case value objects.
+  Already a transitive dependency of `anthropic`.
+* **diskcache** — a SQLite-backed key-value store used to cache LLM
+  responses locally.
+* **ged4py** — reads GEDCOM files.
+* **sqlite3** (stdlib) — storage for both the family data and the cache.
 
 Future additions
 ------------------
 
-The current design makes it fairly straight forward to consider new features if they are justified by 
-used cases.
+The design leaves room for two extensions that will likely come once a
+use case demands them:
 
-Complex handling of memory - The Turn object is stateless. The conversation loop is just one simple way 
-of extending it and adding not only a loop but the stateful concept. For example right now, the Conversation
-class calls a Turn with a query, and runs the Turn which can contain tool calls within and multiple trips to
-the LLM. The Conversation then decides what to put into history so that the LLM is aware of certain context.
-This is the right seam to introduce the more complex idea of Memory. 
+* **Smarter memory.** Right now `Conversation` just accumulates raw
+  messages and hands them back. Long conversations will eventually
+  pressure the context window. The Conversation seam is the right place
+  to insert compaction — summaries of older turns, a table-of-contents
+  index, or an explicit memory-lookup tool that lets the model retrieve
+  older detail on demand. The Turn stays stateless throughout.
+* **Layered thought / multi-agent.** Turns compose. A supervisor Turn
+  can call sub-agent Turns with different system prompts; a state
+  machine can model modes (plan / execute / verify / repair) as
+  transitions between Turn configurations. The stateless-Turn contract
+  is what keeps this from turning into a graph of tangled state.
 
-Currently it just consists of taking the messages out of the turn and accumulating those and handing them 
-back to the model. That is simple but might not scale to very long conversations. The LLM context will 
-eventually become pressured or actually fill and performance will drop.
+Neither ships until a real problem justifies it.
 
-To handle that, we can do things like introduce a more complex Memory handler that compacts the context. 
-Examples might include summaries of older messages, dropping older ones. Might also include creating 
-high level summaries like a table of contents and creating an explicit tool call which effectively 
-allows the model to gain details from older memory. Thus, memory can become a kind of database and the LLM
-can choose to make use of it if needed. 
+TODO
+------
 
-We don't want to add this unless a use case indicates it is needed but we have a flexible design that 
-should be able to support it. 
-
-Layered modes of thought - We can add additional layers that make use of Turns in more complex ways.
-This includes having multiple agents with different systems prompts which can be directed to act together.
-Keeping this well structured and understandable is likely a challenge more so that simply making the connections.
-
-You can also have a single agent with categories of thought modeled as a state machine. They can be layered
-so that they have a natural ordering, e.g. high-level planning is above execution and you move up and down the 
-stack or unordered: creative exploration, verifying results, fixing mistakes etc.
-
-All of these models can make use of the same stateless Turn tool and just build on their own concerns. 
-This is an example of separation of concerns and a way to encapsulate the complexity of everything we 
-have built so far so that it does not interact strongly with whatever new complexity needs to come next.
-
-Other design choices
-----------------------
-This currently supports only Anthropic models. Adding support for OpenAI models, local models etc. is possible
-but I delayed this for a few reasons. The main one is that is adds some complexity or the need for adpators or
-possibly a unifying library like LiteLLM and it doesn't really help us on our goals. Anthropic models are very
-competitive and still offer trade off choices between accuracy and speed/cost. In have built such adapters in 
-the past and it doesn't really change much. Need for other models might come later and would be half a day's work
-at the cost of some added complexity to the core.
-
-It is CLI driven only. Makes little sense to add things like visualization or UIs until the logic has stabilized
-and patters become more ingrained.
-
-TODO items
--------------
-
-No need for Docker or containers yet. This is still experimental and intended to be run locally. Still has a 
-reliable build.
-
-The data is not yet attached anywhere to the repo. It is manually installed into a git-ignored directory.
-Moving it to it's own repo or somewhere it can be loaded from is a TODO item. It's all public data anyways.
-The genealogy evals cannot be run until the data is installed.
-
-Other Design details
----------------------
-
-Test running:
-
-Loading genealogy data:
-
-Running evals:
-
-Observability:
-
-Model config:
-
-API key config:
-
-Security/safety issues:
-
-Other:
-
+* Host public GEDCOMs somewhere fetchable so the genealogy evals can
+  run without a manual data install.
+* No Docker or container packaging yet; local `uv sync` is the current
+  build story. Revisit if the project moves to shared infrastructure.
