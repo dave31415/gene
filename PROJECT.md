@@ -20,6 +20,10 @@ frameworks are unlikely to remain popular for long.
 For these reasons, I decided to build this myself using minimal dependencies. This kind of application
 is often called a harness or agentic program.
 
+Another main goal is not to discover a universal approach to all agentic business problems but to discover some
+core approaches that will be useful for particular ones I might face; problems that are challenging and, to me, 
+more interesting, such as some of the problems encountered in robotics.
+
 Dependencies
 ------------------
 
