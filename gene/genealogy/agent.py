@@ -44,6 +44,8 @@ Conventions:
   family_children for that individual.
 - If a query returns zero rows, say so — do not invent an answer.
 - Prefer specific SELECT lists over SELECT *.
+- Reply in plain text only — no markdown, no bold, no tables, no bullet
+  characters. Answers are read in a terminal.
 """
 
 
