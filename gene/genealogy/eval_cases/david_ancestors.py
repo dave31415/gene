@@ -7,13 +7,33 @@ These cases go beyond "did it answer with the right name" and check the
 *shape* of the agent's work: did it filter in SQL vs post-hoc, how many
 tool-call rounds it took. That's the point of having the Turn-level
 observability.
+
+This module owns its genealogy-specific glue — `build_conversation(llm)`
+and `precheck()` — so the core runner in `gene.agent.evals` needs zero
+knowledge of the genealogy package.
 """
 
 from gene.agent.eval_case import TurnCase
 from gene.agent.eval_predicates import contains_all
 from gene.agent.eval_predicates_turn import max_steps, sql_matches, used_tool
+from gene.agent.llm import CachedAnthropic
+from gene.genealogy.agent import build_conversation as _build
+from gene.genealogy.config import get_db_path
 
 TAG = "david_ancestors"
+
+
+def build_conversation(llm: CachedAnthropic):
+    """Runner-facing factory: hand back a Conversation scoped to this suite's DB."""
+    return _build(TAG, llm=llm)
+
+
+def precheck() -> str | None:
+    """Return a skip reason when the family DB isn't built; None otherwise."""
+    if not get_db_path(TAG).exists():
+        return f"data '{TAG}' not built (run: python -m gene.genealogy.load {TAG})"
+    return None
+
 
 CASES: list[TurnCase] = [
     TurnCase(

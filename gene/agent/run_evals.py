@@ -1,15 +1,21 @@
-"""Matrix runner: run every eval suite against every eval config.
+"""Matrix runner: run every eval suite in a directory against every eval config.
 
-Writes per-cell results to `eval_results/<suite>/<config>.json` plus
-per-suite (`<suite>/summary.json`) and cross-suite (`summary.json`)
-roll-ups. Default mode is diff-only: compare the current run to what's
-on disk and print the delta without touching files. Pass `--save` to
-overwrite baseline files.
+Point it at a directory of suite modules — the same directory contract used by
+`gene.agent.evals`:
 
-Timings are excluded from the results files. Passing `--no-cache`
-bypasses the LLM cache and appends one row per run to
-`<suite>/<config>.timings.jsonl`, then rebuilds `timings_summary.json`
-files (per-suite and top-level) from the accumulated history.
+    uv run python -m gene.agent.run_evals gene/agent/eval_cases
+    uv run python -m gene.agent.run_evals gene/genealogy/eval_cases --save
+    uv run python -m gene.agent.run_evals gene/agent/eval_cases --suite basic --name adds_two
+
+Results mirror the input dir: `eval_results/<dir>/<suite>/<config>.json` plus
+per-suite (`<suite>/summary.json`) and cross-suite (`summary.json`) roll-ups.
+Default mode is diff-only: compare the current run to what's on disk and print
+the delta without touching files. Pass `--save` to overwrite baseline files.
+
+Timings are excluded from the results files. Passing `--no-cache` bypasses the
+LLM cache and appends one row per run to `<suite>/<config>.timings.jsonl`, then
+rebuilds `timings_summary.json` files (per-suite and top-level) from the
+accumulated history.
 """
 
 import argparse
@@ -21,9 +27,16 @@ from typing import Any
 
 from gene.agent.eval_case import Report
 from gene.agent.eval_configs import get_eval_configs
-from gene.agent.evals import build_report, list_suites, load_suite, run, skip_reason
+from gene.agent.evals import (
+    build_report,
+    filter_cases,
+    list_suites,
+    load_suite,
+    run,
+    skip_reason,
+)
 
-RESULTS_DIR = Path(__file__).resolve().parent.parent / "eval_results"
+RESULTS_ROOT = Path("eval_results")
 
 
 def cell_to_dict(report: Report, suite: str, config_name: str) -> dict[str, Any]:
@@ -209,13 +222,24 @@ def build_top_summary(all_cells: list[dict]) -> dict[str, Any]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the eval matrix.")
+    parser = argparse.ArgumentParser(
+        prog="gene.agent.run_evals",
+        description="Run the eval matrix (every suite × every config) for a directory of suites.",
+    )
+    parser.add_argument(
+        "dir",
+        help="Directory of suite modules (e.g. gene/agent/eval_cases).",
+    )
     parser.add_argument(
         "--save",
         action="store_true",
         help="Overwrite baseline files (default: diff-only, no writes).",
     )
-    parser.add_argument("--suite", help="Limit to a single suite.")
+    parser.add_argument("--suite", help="Limit to a single suite (file stem).")
+    parser.add_argument(
+        "--name",
+        help="Limit to a single case name inside --suite. Requires --suite.",
+    )
     parser.add_argument("--config", help="Limit to a single config.")
     parser.add_argument(
         "--no-cache",
@@ -224,7 +248,16 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    suites = [args.suite] if args.suite else list_suites()
+    if args.name is not None and args.suite is None:
+        parser.error("--name requires --suite")
+
+    results_dir = RESULTS_ROOT / Path(args.dir)
+
+    suite_names = [args.suite] if args.suite else list_suites(args.dir)
+    if not suite_names:
+        print(f"no suites found in {args.dir}")
+        return
+
     configs = get_eval_configs()
     if args.config:
         configs = {args.config: configs[args.config]}
@@ -232,12 +265,13 @@ def main() -> None:
     cells: list[dict] = []
     changed = 0
 
-    for suite_name in suites:
-        suite = load_suite(suite_name)
+    for suite_name in suite_names:
+        suite = load_suite(args.dir, suite_name)
         reason = skip_reason(suite)
         if reason is not None:
             print(f"\n>> {suite_name} — SKIP: {reason}")
             continue
+        suite = filter_cases(suite, args.name)
         for config_name, config in configs.items():
             print(f"\n>> {suite_name} × {config_name} ({config['model']})")
             results = run(suite, config=config, use_cache=not args.no_cache)
@@ -245,7 +279,7 @@ def main() -> None:
             current = cell_to_dict(report, suite=suite_name, config_name=config_name)
             cells.append(current)
 
-            cell_path = RESULTS_DIR / suite_name / f"{config_name}.json"
+            cell_path = results_dir / suite_name / f"{config_name}.json"
             baseline = None
             if cell_path.exists():
                 baseline = json.loads(cell_path.read_text())
@@ -258,7 +292,7 @@ def main() -> None:
                 changed += 1
 
             if args.no_cache:
-                timings_path = RESULTS_DIR / suite_name / f"{config_name}.timings.jsonl"
+                timings_path = results_dir / suite_name / f"{config_name}.timings.jsonl"
                 timings_path.parent.mkdir(parents=True, exist_ok=True)
                 row = {
                     "timestamp": datetime.now(UTC).isoformat(),
@@ -274,20 +308,23 @@ def main() -> None:
                 cell_path.write_text(json.dumps(current, indent=2) + "\n")
 
     if args.save:
-        for suite in suites:
-            suite_cells = [c for c in cells if c["suite"] == suite]
-            suite_summary_path = RESULTS_DIR / suite / "summary.json"
+        for suite_name in suite_names:
+            suite_cells = [c for c in cells if c["suite"] == suite_name]
+            if not suite_cells:
+                continue
+            suite_summary_path = results_dir / suite_name / "summary.json"
             suite_summary_path.parent.mkdir(parents=True, exist_ok=True)
             suite_summary_path.write_text(
                 json.dumps(build_suite_summary(suite_cells), indent=2) + "\n"
             )
 
-        top_summary_path = RESULTS_DIR / "summary.json"
-        top_summary_path.parent.mkdir(parents=True, exist_ok=True)
-        top_summary_path.write_text(json.dumps(build_top_summary(cells), indent=2) + "\n")
+        if cells:
+            top_summary_path = results_dir / "summary.json"
+            top_summary_path.parent.mkdir(parents=True, exist_ok=True)
+            top_summary_path.write_text(json.dumps(build_top_summary(cells), indent=2) + "\n")
 
-    if args.no_cache:
-        write_timing_summaries(RESULTS_DIR)
+    if args.no_cache and results_dir.exists():
+        write_timing_summaries(results_dir)
 
     mode = "saved to baseline" if args.save else "diff only (no writes)"
     print(f"\n=== done: {changed}/{len(cells)} cells changed | mode: {mode} ===")

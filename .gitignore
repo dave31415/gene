@@ -24,4 +24,4 @@ genealogy_data/
 gene/genealogy/db/
 
 # Private genealogy eval baselines (leak family info even without raw data)
-eval_results/genealogy/
+eval_results/gene/genealogy/

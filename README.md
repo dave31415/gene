@@ -84,21 +84,29 @@ uv run python -m gene.agent.llm
 
 ## Evals
 
-Run one suite:
+Both eval runners take a directory of suite modules — each `.py` file is a
+suite exporting `CASES` (and, for TurnCases, `build_conversation(llm)` and
+optionally `precheck() -> str | None` to skip when data isn't loaded).
+
+Run every suite in a directory against one model:
 
 ```
-uv run python -m gene.agent.evals --suite basic --model sonnet
+uv run python -m gene.agent.evals gene/agent/eval_cases
+uv run python -m gene.agent.evals gene/genealogy/eval_cases --model sonnet
+uv run python -m gene.agent.evals gene/agent/eval_cases --suite basic --name simple_math
 ```
 
 Run the full suite × config matrix and diff against saved baselines:
 
 ```
-uv run python -m gene.agent.run_evals
-uv run python -m gene.agent.run_evals --save        # overwrite baselines
-uv run python -m gene.agent.run_evals --no-cache    # bypass cache, record timings
+uv run python -m gene.agent.run_evals gene/agent/eval_cases
+uv run python -m gene.agent.run_evals gene/agent/eval_cases --save       # overwrite baselines
+uv run python -m gene.agent.run_evals gene/agent/eval_cases --no-cache   # bypass cache, record timings
 ```
 
-Baselines live under `eval_results/<suite>/<config>.json`.
+Baselines mirror the input dir under `eval_results/<dir>/<suite>/<config>.json`.
+Genealogy baselines (`eval_results/gene/genealogy/`) are gitignored since case
+names can leak family info.
 
 ## Tests
 
