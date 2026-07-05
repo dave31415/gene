@@ -1,6 +1,11 @@
 # Genealogy Agentic AI
 
-Agentic AI for answering questions from a Gedcom file.
+A minimal from-scratch agentic-AI harness built on the Anthropic SDK, driven
+by a stateless `Turn` value object. Genealogy Q&A over GEDCOM family-tree
+data is the driving use case. Deliberately avoids LangChain / LangGraph in
+favour of a small, observable, testable core.
+
+See [PROJECT.md](PROJECT.md) for the design writeup and rationale.
 
 ## Install
 
