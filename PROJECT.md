@@ -116,5 +116,107 @@ Design Characteristics
 
 The package gene has two subdirectories agent and genealogy. These are not yet separated into
 uv packages (or separate repos etc) but are roughly considered separate with genealogy depending 
-on agent but not vice versa. The genealogy directory treats agent like a library.
+on agent but not vice versa. The genealogy directory treats agent like a library. This will likely 
+evolve in the future but keep loose coupling now is important for that.
+
+There are several high level goals for the design:
+
+* Simplicity - Agentic AI applied to use cases can be complex enough on it's own. Don't add extra complexity
+* Understandability - You need to understand what your code is doing always
+* Flexibility - As you address harder parts of the problem or other hard problems, you will need to take 
+  some different approaches but want to try to reuse a number of flexible components in different ways
+
+These drive some lower level needs:
+
+* Observability - You need to make it easy to see what happened. This needs to drive the design not be added on later.
+* Testability - Unit test. Integration tests. Ability to run eval suites and see the effect of any code or 
+  configuration changes
+* Reign in or control statefulness - Statefulness is not entirely avoidable but you can limit it to a few obvious 
+  places and keep most of the code functional (referentially transparent). This aids understandability, and reduces 
+  complexity and makes testing easier.
+
+These features and needs drove decisions such as the following:
+* Cache the LLM model calls to reduce non-determinism and handle the cache carefully
+* Make a "Turn" object, a fundamental building block, containing multiple LLM trips (Steps which 
+  can include tool calls) that is stateless (when LLMs are cached).
+* Push the state required for carrying on longer context-bound conversations and other modes of complex thinking 
+  to higher layers that use stateless Turns.
+
+Future additions
+------------------
+
+The current design makes it fairly straight forward to consider new features if they are justified by 
+used cases.
+
+Complex handling of memory - The Turn object is stateless. The conversation loop is just one simple way 
+of extending it and adding not only a loop but the stateful concept. For example right now, the Conversation
+class calls a Turn with a query, and runs the Turn which can contain tool calls within and multiple trips to
+the LLM. The Conversation then decides what to put into history so that the LLM is aware of certain context.
+This is the right seam to introduce the more complex idea of Memory. 
+
+Currently it just consists of taking the messages out of the turn and accumulating those and handing them 
+back to the model. That is simple but might not scale to very long conversations. The LLM context will 
+eventually become pressured or actually fill and performance will drop.
+
+To handle that, we can do things like introduce a more complex Memory handler that compacts the context. 
+Examples might include summaries of older messages, dropping older ones. Might also include creating 
+high level summaries like a table of contents and creating an explicit tool call which effectively 
+allows the model to gain details from older memory. Thus, memory can become a kind of database and the LLM
+can choose to make use of it if needed. 
+
+We don't want to add this unless a use case indicates it is needed but we have a flexible design that 
+should be able to support it. 
+
+Layered modes of thought - We can add additional layers that make use of Turns in more complex ways.
+This includes having multiple agents with different systems prompts which can be directed to act together.
+Keeping this well structured and understandable is likely a challenge more so that simply making the connections.
+
+You can also have a single agent with categories of thought modeled as a state machine. They can be layered
+so that they have a natural ordering, e.g. high-level planning is above execution and you move up and down the 
+stack or unordered: creative exploration, verifying results, fixing mistakes etc.
+
+All of these models can make use of the same stateless Turn tool and just build on their own concerns. 
+This is an example of separation of concerns and a way to encapsulate the complexity of everything we 
+have built so far so that it does not interact strongly with whatever new complexity needs to come next.
+
+Other design choices
+----------------------
+This currently supports only Anthropic models. Adding support for OpenAI models, local models etc. is possible
+but I delayed this for a few reasons. The main one is that is adds some complexity or the need for adpators or
+possibly a unifying library like LiteLLM and it doesn't really help us on our goals. Anthropic models are very
+competitive and still offer trade off choices between accuracy and speed/cost. In have built such adapters in 
+the past and it doesn't really change much. Need for other models might come later and would be half a day's work
+at the cost of some added complexity to the core.
+
+It is CLI driven only. Makes little sense to add things like visualization or UIs until the logic has stabilized
+and patters become more ingrained.
+
+TODO items
+-------------
+
+No need for Docker or containers yet. This is still experimental and intended to be run locally. Still has a 
+reliable build.
+
+The data is not yet attached anywhere to the repo. It is manually installed into a git-ignored directory.
+Moving it to it's own repo or somewhere it can be loaded from is a TODO item. It's all public data anyways.
+The genealogy evals cannot be run until the data is installed.
+
+Other Design details
+---------------------
+
+Test running:
+
+Loading genealogy data:
+
+Running evals:
+
+Observability:
+
+Model config:
+
+API key config:
+
+Security/safety issues:
+
+Other:
 
