@@ -37,8 +37,14 @@ class Conversation:
     def ask(self, text: str) -> Turn:
         """Run one turn: send, execute any tools, loop until end_turn."""
         turn = self.runner.run(self.history, text, system=self.system)
+
+        # The following two lines are where context is managed
+        # Simply append new messages for now
+        # eventually or in other classes, manage context more generally
+        
         self.history.extend(turn.new_messages)
         self.turns.append(turn)
+
         if self.log_path is not None:
             with self.log_path.open("a") as f:
                 f.write(json.dumps(turn.to_dict()) + "\n")
