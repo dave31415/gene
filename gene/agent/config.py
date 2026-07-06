@@ -26,7 +26,7 @@ def get_llm_config(model: str = "sonnet", **overrides):
         "model": get_model_name(model),
         "max_tokens": 4096,
         "temperature": None,
-        "keys_dir": base_config / "ancestors" / "keys",
+        "keys_dir": base_config / "gene" / "keys",
         "cache_dir": base_cache / "gene" / "llm",
     }
     config.update(overrides)

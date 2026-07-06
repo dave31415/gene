@@ -15,7 +15,7 @@ Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
 uv sync
 ```
 
-Put your Anthropic API key at `~/.config/ancestors/keys/anthropic`.
+Put your Anthropic API key at `~/.config/gene/keys/anthropic`.
 
 ## Genealogy
 
@@ -65,9 +65,11 @@ uv run python -m gene.agent.chat_loop --log                        # auto: logs/
 uv run python -m gene.agent.chat_loop --log path/to/session.jsonl  # explicit path
 ```
 
-View a log file (content-focused by default):
+View a log file (content-focused by default). PATH defaults to the newest
+`*.jsonl` in `logs/` when omitted:
 
 ```
+uv run python -m gene.agent.log_view                               # newest log
 uv run python -m gene.agent.log_view PATH                          # In / Out per turn
 uv run python -m gene.agent.log_view PATH --trace                  # full per-step trace
 uv run python -m gene.agent.log_view PATH --turn N                 # one turn (negatives ok)

@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import pytest
 from anthropic.types import Message
 
-from gene.agent.log_view import load_turns, main, render
+from gene.agent.log_view import latest_log, load_turns, main, render
 from gene.agent.turn import Step, Turn
 
 
@@ -190,3 +190,48 @@ def test_main_turn_and_tail_mutually_exclusive(tmp_path):
     _write_log(log, [_make_turn()])
     with pytest.raises(SystemExit):
         main([str(log), "--turn", "0", "--tail", "1"])
+
+
+def test_latest_log_picks_newest_by_mtime(tmp_path):
+    old = tmp_path / "old.jsonl"
+    new = tmp_path / "new.jsonl"
+    old.write_text("")
+    new.write_text("")
+    # Force old mtime to be earlier.
+    import os
+    os.utime(old, (1000, 1000))
+    os.utime(new, (2000, 2000))
+    assert latest_log(tmp_path) == new
+
+
+def test_latest_log_none_when_dir_empty(tmp_path):
+    assert latest_log(tmp_path) is None
+
+
+def test_latest_log_none_when_dir_missing(tmp_path):
+    assert latest_log(tmp_path / "does-not-exist") is None
+
+
+def test_main_defaults_to_latest_log(tmp_path, capsys, monkeypatch):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    _write_log(logs / "a.jsonl", [_make_turn("q_old")])
+    _write_log(logs / "b.jsonl", [_make_turn("q_new")])
+    import os
+    os.utime(logs / "a.jsonl", (1000, 1000))
+    os.utime(logs / "b.jsonl", (2000, 2000))
+    monkeypatch.chdir(tmp_path)
+    main([])
+    captured = capsys.readouterr()
+    assert "In:  q_new" in captured.out
+    assert "In:  q_old" not in captured.out
+    assert "using" in captured.err
+    assert "b.jsonl" in captured.err
+
+
+def test_main_no_path_and_no_logs_errors(tmp_path, capsys, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        main([])
+    assert exc.value.code == 1
+    assert "no *.jsonl files" in capsys.readouterr().err

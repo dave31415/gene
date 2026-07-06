@@ -240,7 +240,7 @@ thinking budget) without touching any runner code.
 
 API key config:
 
-The Anthropic API key sits at `~/.config/ancestors/keys/anthropic` —
+The Anthropic API key sits at `~/.config/gene/keys/anthropic` —
 XDG-friendly, no dotenv, no environment variables shipped in the repo.
 The keys directory resolves through `XDG_CONFIG_HOME` if set, otherwise
 `~/.config`. The layout leaves room for additional providers later.
