@@ -6,7 +6,7 @@
 
 The family_tag must correspond to a SQLite DB built by `gene.genealogy.load`.
 Unknown family_tags and not-yet-loaded family_tags both exit 2 with a clean
-stderr message (no traceback) — see the __main__ block.
+stderr message (no traceback) — see `_run_cli`.
 
 Mirrors `gene.agent.chat_loop` — the difference is the required
 `family_tag` positional and the genealogy-specific factory that wires the
@@ -62,7 +62,7 @@ def chat(
             print(f"     [{turn.summary()}]\n")
 
 
-if __name__ == "__main__":
+def _make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gene.genealogy.chat",
         description="Chat with the genealogy agent for a loaded family tree.",
@@ -99,20 +99,25 @@ if __name__ == "__main__":
             "--log PATH uses PATH."
         ),
     )
-    args = parser.parse_args()
+    return parser
 
-    log_path = args.log
-    if log_path == _LOG_AUTO:
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_path = f"logs/genealogy-{args.family_tag}-{ts}.jsonl"
 
+def _resolve_log_path(log_arg: str | None, family_tag: str) -> str | None:
+    if log_arg != _LOG_AUTO:
+        return log_arg
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"logs/genealogy-{family_tag}-{ts}.jsonl"
+
+
+def _run_cli(args: argparse.Namespace) -> None:
+    """Invoke `chat` and translate a missing-DB error into a friendly exit."""
     try:
         chat(
             family_tag=args.family_tag,
             model=args.model,
             verbose=args.verbose,
             ask=args.ask,
-            log_path=log_path,
+            log_path=_resolve_log_path(args.log, args.family_tag),
         )
     except FileNotFoundError:
         # Distinguish "not a family at all" from "family exists but hasn't
@@ -131,3 +136,7 @@ if __name__ == "__main__":
                 file=sys.stderr,
             )
         sys.exit(2)
+
+
+if __name__ == "__main__":
+    _run_cli(_make_parser().parse_args())
