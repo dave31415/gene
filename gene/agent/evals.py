@@ -32,6 +32,7 @@ one row per run to `<suite>/<config>.timings.jsonl`, and rebuilds
 import argparse
 import importlib
 import json
+import sys
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -45,6 +46,32 @@ from gene.agent.eval_configs import get_eval_configs
 from gene.agent.llm import CachedAnthropic
 
 RESULTS_ROOT = Path("eval_results")
+
+_USE_COLOR = sys.stdout.isatty()
+
+
+def _c(code: str, text: str) -> str:
+    return f"\033[{code}m{text}\033[0m" if _USE_COLOR else text
+
+
+def cyan(text: str) -> str:
+    return _c("36", text)
+
+
+def green(text: str) -> str:
+    return _c("32", text)
+
+
+def red(text: str) -> str:
+    return _c("31", text)
+
+
+def yellow(text: str) -> str:
+    return _c("33", text)
+
+
+def magenta(text: str) -> str:
+    return _c("35", text)
 
 
 class Suite(NamedTuple):
@@ -169,12 +196,14 @@ def build_report(results: list[Result], config: dict[str, Any]) -> Report:
 
 
 def print_report(report: Report) -> None:
-    print(f"\n=== eval report (model={report.model}) ===")
-    print(f"{'case':<32} {'result':<6} {'in':>6} {'out':>6} {'steps':>5} {'tools':>5} {'sec':>6}")
+    print(magenta(f"\n=== eval report (model={report.model}) ==="))
+    print(f"{'case':<50} {'result':<6} {'in':>6} {'out':>6} {'steps':>5} {'tools':>5} {'sec':>6}")
     for r in report.results:
-        mark = "PASS" if r.passed else "FAIL"
+        mark = green("PASS") if r.passed else red("FAIL")
+        # Pad manually since ANSI escapes throw off `:<6` width.
+        mark_padded = mark + " " * (6 - 4)
         print(
-            f"{r.case.name:<32} {mark:<6} "
+            f"{r.case.name:<50} {mark_padded} "
             f"{r.input_tokens:>6} {r.output_tokens:>6} "
             f"{r.steps:>5} {r.tool_calls:>5} {r.seconds:>6.2f}"
         )
@@ -245,9 +274,9 @@ def diff_cell(current: dict, baseline: dict | None) -> tuple[str, list[str]]:
         cur = curr_cases[name]
         base = base_cases[name]
         if cur["passed"] and not base["passed"]:
-            diffs.append(f"    FIXED   {name}: fail → pass")
+            diffs.append(green(f"    FIXED   {name}: fail → pass"))
         elif not cur["passed"] and base["passed"]:
-            diffs.append(f"    REGRESS {name}: pass → fail")
+            diffs.append(red(f"    REGRESS {name}: pass → fail"))
         if cur["output_tokens"] != base["output_tokens"]:
             diffs.append(
                 f"    tokens  {name}: out {base['output_tokens']} → {cur['output_tokens']}"
@@ -432,11 +461,11 @@ def main() -> None:
         suite = load_suite(args.dir, suite_name)
         reason = skip_reason(suite)
         if reason is not None:
-            print(f"\n>> {suite_name} — SKIP: {reason}")
+            print(yellow(f"\n>> {suite_name} — SKIP: {reason}"))
             continue
         suite = filter_cases(suite, args.name)
         for config_name, config in configs.items():
-            print(f"\n>> {suite_name} × {config_name} ({config['model']})")
+            print(cyan(f"\n>> {suite_name} × {config_name} ({config['model']})"))
             results = run(suite, config=config, use_cache=not args.no_cache)
             report = build_report(results, config=config)
             current = cell_to_dict(report, suite=suite_name, config_name=config_name)
@@ -492,7 +521,7 @@ def main() -> None:
         write_timing_summaries(results_dir)
 
     mode = "saved to baseline" if args.save else "diff only (no writes)"
-    print(f"\n=== done: {changed}/{len(cells)} cells changed | mode: {mode} ===")
+    print(cyan(f"\n=== done: {changed}/{len(cells)} cells changed | mode: {mode} ==="))
 
 
 if __name__ == "__main__":

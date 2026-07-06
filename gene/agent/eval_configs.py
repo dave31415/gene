@@ -12,6 +12,7 @@ from gene.agent.config import get_llm_config
 def get_eval_configs() -> dict[str, dict[str, Any]]:
     return {
         "haiku": get_llm_config(model="haiku"),
+        "haiku_0": get_llm_config(model="haiku", temperature=0),
         "sonnet": get_llm_config(model="sonnet"),
         "opus": get_llm_config(model="opus"),
     }
