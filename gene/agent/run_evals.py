@@ -32,6 +32,7 @@ from gene.agent.evals import (
     filter_cases,
     list_suites,
     load_suite,
+    print_report,
     run,
     skip_reason,
 )
@@ -246,6 +247,12 @@ def main() -> None:
         action="store_true",
         help="Bypass the LLM cache and append timings to each cell's .timings.jsonl.",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Also print the per-case report table for each cell.",
+    )
     args = parser.parse_args()
 
     if args.name is not None and args.suite is None:
@@ -288,6 +295,8 @@ def main() -> None:
             print(status)
             for line in diffs:
                 print(line)
+            if args.verbose:
+                print_report(report)
             if baseline is None or diffs:
                 changed += 1
 

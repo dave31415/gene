@@ -57,4 +57,19 @@ CASES: list[TurnCase] = [
             and max_steps(t, 6)
         ),
     ),
+    TurnCase(
+        name="ancestor_walk_uses_recursive_cte",
+        # Observed head-to-head: Opus solves this in 3 queries with a
+        # WITH RECURSIVE walking the ancestor chain, then answers. Haiku
+        # walks one hop at a time, hits max_steps at 20, and produces no
+        # reply. This case fails any model that doesn't reach for
+        # recursive SQL on an ancestor question — the whole point of
+        # TurnCase, since a one-shot text check would miss it.
+        prompt="Is David Johnston related to John Rice?",
+        check=lambda t: (
+            contains_all(t.text, ["Rice"])
+            and sql_matches(t, r"with\s+recursive\b")
+            and max_steps(t, 8)
+        ),
+    ),
 ]
