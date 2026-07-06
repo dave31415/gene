@@ -29,7 +29,7 @@ def conn(tmp_path):
     c.close()
 
 
-def test_system_prompt_includes_tag(conn):
+def test_system_prompt_includes_family_tag(conn):
     prompt = build_system_prompt("bronte", conn)
     assert "bronte" in prompt
 

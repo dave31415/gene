@@ -4,13 +4,13 @@
     python -m gene.genealogy.chat bronte --ask "How many children did Patrick have?"
     python -m gene.genealogy.chat bronte --log
 
-The tag must correspond to a SQLite DB built by `gene.genealogy.load`.
-Unknown tags and not-yet-loaded tags both exit 2 with a clean stderr
-message (no traceback) — see the __main__ block.
+The family_tag must correspond to a SQLite DB built by `gene.genealogy.load`.
+Unknown family_tags and not-yet-loaded family_tags both exit 2 with a clean
+stderr message (no traceback) — see the __main__ block.
 
-Mirrors `gene.agent.chat_loop` — the difference is the required `tag`
-positional and the genealogy-specific factory that wires the run_query
-tool + schema-aware system prompt.
+Mirrors `gene.agent.chat_loop` — the difference is the required
+`family_tag` positional and the genealogy-specific factory that wires the
+run_query tool + schema-aware system prompt.
 """
 
 import argparse
@@ -19,22 +19,25 @@ from datetime import datetime
 from pathlib import Path
 
 from gene.genealogy.agent import build_conversation
-from gene.genealogy.config import available_tags
+from gene.genealogy.config import available_family_tags
 
 _LOG_AUTO = "__auto__"
 
 
 def chat(
-    tag: str,
+    family_tag: str,
     model: str = "sonnet",
     verbose: bool = False,
     ask: str | None = None,
     log_path: Path | str | None = None,
 ) -> None:
     """Chat with the agent for the given family. `ask` runs one turn and exits."""
-    conv = build_conversation(tag, model=model, log_path=log_path)
+    conv = build_conversation(family_tag, model=model, log_path=log_path)
     log_note = f", log={log_path}" if log_path else ""
-    print(f"Genealogy chat: tag={tag}, model={model}{log_note}. /quit to exit.\n")
+    print(
+        f"Genealogy chat: family_tag={family_tag}, model={model}{log_note}."
+        " /quit to exit.\n"
+    )
 
     if ask is not None:
         turn = conv.ask(ask)
@@ -64,7 +67,9 @@ if __name__ == "__main__":
         prog="gene.genealogy.chat",
         description="Chat with the genealogy agent for a loaded family tree.",
     )
-    parser.add_argument("tag", help="family tag (a DB built by gene.genealogy.load)")
+    parser.add_argument(
+        "family_tag", help="family tag (a DB built by gene.genealogy.load)"
+    )
     parser.add_argument(
         "--model",
         choices=["haiku", "sonnet", "opus"],
@@ -90,7 +95,8 @@ if __name__ == "__main__":
         metavar="PATH",
         help=(
             "Log turns as JSONL. Bare --log auto-generates "
-            "logs/genealogy-{tag}-{YYYYMMDD-HHMMSS}.jsonl; --log PATH uses PATH."
+            "logs/genealogy-{family_tag}-{YYYYMMDD-HHMMSS}.jsonl; "
+            "--log PATH uses PATH."
         ),
     )
     args = parser.parse_args()
@@ -98,11 +104,11 @@ if __name__ == "__main__":
     log_path = args.log
     if log_path == _LOG_AUTO:
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_path = f"logs/genealogy-{args.tag}-{ts}.jsonl"
+        log_path = f"logs/genealogy-{args.family_tag}-{ts}.jsonl"
 
     try:
         chat(
-            tag=args.tag,
+            family_tag=args.family_tag,
             model=args.model,
             verbose=args.verbose,
             ask=args.ask,
@@ -111,16 +117,17 @@ if __name__ == "__main__":
     except FileNotFoundError:
         # Distinguish "not a family at all" from "family exists but hasn't
         # been loaded yet" so the recovery hint is actionable.
-        tags = available_tags()
-        if args.tag not in tags:
+        family_tags = available_family_tags()
+        if args.family_tag not in family_tags:
             print(
-                f"error: unknown family tag {args.tag!r}. available: {tags}",
+                f"error: unknown family_tag {args.family_tag!r}."
+                f" available: {family_tags}",
                 file=sys.stderr,
             )
         else:
             print(
-                f"error: family {args.tag!r} not built yet. "
-                f"run: python -m gene.genealogy.load {args.tag}",
+                f"error: family {args.family_tag!r} not built yet. "
+                f"run: python -m gene.genealogy.load {args.family_tag}",
                 file=sys.stderr,
             )
         sys.exit(2)

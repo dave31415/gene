@@ -20,18 +20,18 @@ from gene.agent.llm import CachedAnthropic
 from gene.genealogy.agent import build_conversation as _build
 from gene.genealogy.config import get_db_path
 
-TAG = "david_ancestors"
+FAMILY_TAG = "david_ancestors"
 
 
 def build_conversation(llm: CachedAnthropic):
     """Runner-facing factory: hand back a Conversation scoped to this suite's DB."""
-    return _build(TAG, llm=llm)
+    return _build(FAMILY_TAG, llm=llm)
 
 
 def precheck() -> str | None:
     """Return a skip reason when the family DB isn't built; None otherwise."""
-    if not get_db_path(TAG).exists():
-        return f"data '{TAG}' not built (run: python -m gene.genealogy.load {TAG})"
+    if not get_db_path(FAMILY_TAG).exists():
+        return f"data '{FAMILY_TAG}' not built (run: python -m gene.genealogy.load {FAMILY_TAG})"
     return None
 
 

@@ -99,8 +99,8 @@ def describe_schema(conn: sqlite3.Connection) -> str:
     """Return the CREATE TABLE / CREATE INDEX statements from sqlite_master.
 
     Reflecting from the live DB (vs pasting a hard-coded string) keeps this
-    honest across schema changes and works for any tag the agent is pointed
-    at, even ones with different DDL later.
+    honest across schema changes and works for any family_tag the agent is
+    pointed at, even ones with different DDL later.
     """
     rows = conn.execute(
         "SELECT sql FROM sqlite_master "

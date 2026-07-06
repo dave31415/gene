@@ -89,13 +89,13 @@ def build_db(
         conn.commit()
 
 
-def open_db(tag: str) -> sqlite3.Connection:
-    """Open the database for `tag` in read-only mode."""
-    path = get_db_path(tag)
+def open_db(family_tag: str) -> sqlite3.Connection:
+    """Open the database for `family_tag` in read-only mode."""
+    path = get_db_path(family_tag)
     if not path.exists():
         raise FileNotFoundError(
-            f"no database for tag {tag!r} at {path}. "
-            f"run: python -m gene.genealogy.load {tag}"
+            f"no database for family_tag {family_tag!r} at {path}. "
+            f"run: python -m gene.genealogy.load {family_tag}"
         )
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row

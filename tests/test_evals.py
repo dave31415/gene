@@ -45,7 +45,7 @@ def test_skip_reason_none_when_no_precheck():
 
 
 def test_skip_reason_reports_missing_db(tmp_path):
-    """Point get_db_path at an empty tmp dir so the tag exists in code but the DB doesn't."""
+    """Point get_db_path at an empty tmp dir so the family_tag exists in code but the DB doesn't."""
     suite = load_suite(GENEALOGY_CASES, "david_ancestors")
     fake = tmp_path / "david_ancestors.sqlite"  # does not exist
     with patch("gene.genealogy.eval_cases.david_ancestors.get_db_path", return_value=fake):
