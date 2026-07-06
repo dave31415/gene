@@ -1,0 +1,9 @@
+{
+  "sonnet": {
+    "mean_total_seconds": 7.806,
+    "per_suite_mean": {
+      "arithmetic": 3.735,
+      "basic": 4.071
+    }
+  }
+}

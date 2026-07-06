@@ -1,0 +1,35 @@
+{
+  "sonnet": {
+    "runs": 1,
+    "cases": {
+      "brian_boru_death": {
+        "count": 1,
+        "mean": 1.307,
+        "stddev": 0.0,
+        "min": 1.307,
+        "max": 1.307
+      },
+      "magna_carta": {
+        "count": 1,
+        "mean": 1.637,
+        "stddev": 0.0,
+        "min": 1.637,
+        "max": 1.637
+      },
+      "simple_math": {
+        "count": 1,
+        "mean": 1.127,
+        "stddev": 0.0,
+        "min": 1.127,
+        "max": 1.127
+      }
+    },
+    "total_seconds": {
+      "count": 1,
+      "mean": 4.071,
+      "stddev": 0.0,
+      "min": 4.071,
+      "max": 4.071
+    }
+  }
+}

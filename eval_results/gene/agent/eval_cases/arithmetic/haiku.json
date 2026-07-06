@@ -7,19 +7,25 @@
       "name": "addition",
       "passed": true,
       "input_tokens": 22,
-      "output_tokens": 5
+      "output_tokens": 5,
+      "steps": 1,
+      "tool_calls": 0
     },
     {
       "name": "multiplication",
       "passed": true,
       "input_tokens": 22,
-      "output_tokens": 5
+      "output_tokens": 5,
+      "steps": 1,
+      "tool_calls": 0
     },
     {
       "name": "subtraction",
       "passed": true,
       "input_tokens": 23,
-      "output_tokens": 5
+      "output_tokens": 5,
+      "steps": 1,
+      "tool_calls": 0
     }
   ],
   "summary": {

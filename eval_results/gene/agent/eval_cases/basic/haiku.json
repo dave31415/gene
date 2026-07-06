@@ -1,0 +1,37 @@
+{
+  "suite": "basic",
+  "config_name": "haiku",
+  "model": "claude-haiku-4-5-20251001",
+  "cases": [
+    {
+      "name": "brian_boru_death",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 6,
+      "steps": 1,
+      "tool_calls": 0
+    },
+    {
+      "name": "magna_carta",
+      "passed": true,
+      "input_tokens": 16,
+      "output_tokens": 38,
+      "steps": 1,
+      "tool_calls": 0
+    },
+    {
+      "name": "simple_math",
+      "passed": true,
+      "input_tokens": 22,
+      "output_tokens": 5,
+      "steps": 1,
+      "tool_calls": 0
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "total": 3,
+    "total_input_tokens": 60,
+    "total_output_tokens": 49
+  }
+}

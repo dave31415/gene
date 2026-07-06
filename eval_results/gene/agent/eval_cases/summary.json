@@ -6,6 +6,13 @@
     "total_input_tokens": 127,
     "total_output_tokens": 64
   },
+  "haiku_0": {
+    "model": "claude-haiku-4-5-20251001",
+    "passed": 6,
+    "total": 6,
+    "total_input_tokens": 127,
+    "total_output_tokens": 65
+  },
   "opus": {
     "model": "claude-opus-4-7",
     "passed": 6,
