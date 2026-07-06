@@ -186,13 +186,14 @@ available.
 
 Running evals:
 
-Two runners share one contract. `gene.agent.evals` runs a directory of
-suites against a single model — quick feedback while iterating on a
-case or a prompt. `gene.agent.run_evals` runs every suite × every named
-config, diffs the result against a saved baseline, and (with `--save`)
-overwrites the baseline. That's what runs before merging a change: does
-the pass/fail matrix move? Do the token counts drift? Did any case that
-used to take 3 steps now take 5?
+`gene.agent.evals` takes a directory of suites and runs every suite
+against every named config in `gene/agent/eval_configs.py`, diffing
+each result against a saved baseline. `--config <name>` narrows it to
+one model for quick iteration; `--suite`, `--name`, and `-v` narrow or
+expand the output further. That's what runs before merging a change:
+does the pass/fail matrix move? Do the token counts drift? Did any
+case that used to take 3 steps now take 5? `--save` overwrites the
+baseline when a drift is intentional.
 
 A suite is any `.py` file in the given directory that exports `CASES`.
 For TurnCase suites it also exports `build_conversation(llm)` (a
@@ -273,7 +274,7 @@ Caching and timings:
 The disk cache (via the `diskcache` package) is what makes eval runs
 cheap. Every LLM request is keyed by its full JSON payload; a repeat
 call returns the exact stored `Message` with `cache_hit=True` in the
-metadata. `run_evals --no-cache` bypasses the cache and records a
+metadata. `evals --no-cache` bypasses the cache and records a
 timing sample per case per config into `<config>.timings.jsonl`, then
 rebuilds `timings_summary.json` files from the accumulated history — so
 latency numbers reflect real API round-trips, aggregated over many runs

@@ -1,4 +1,4 @@
-"""Named LLM configs swept by `run_evals`.
+"""Named LLM configs swept by `evals`.
 
 Each entry is a (name → config dict) pair. Starts with the three model
 tags; add variants (max_tokens, temperature, ...) by adding new entries.
