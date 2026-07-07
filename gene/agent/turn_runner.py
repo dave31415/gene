@@ -1,3 +1,22 @@
+"""The turn loop: send → tool_use → send → ... → end_turn.
+
+`TurnRunner` holds the one thing that stays constant across every turn
+of every composer: the LLM client. Everything else — the system prompt,
+the tools available on this turn, the step cap — is passed to `run()`
+per call, because different composers (a plain chatbot, a plan/execute
+agent, a mode-switching state machine) use different values on
+different turns.
+
+The runner knows about turn shape (steps, new_messages, terminal
+reasons) and delegates the send-and-dispatch atom to `execute_step`
+and the tool-result formatting to `tool.tool_result_blocks`. It never
+touches schemas, handlers, or `tool_use` blocks directly.
+
+Exceptions raised during a step (API errors, unexpected failures) are
+caught and recorded on `Turn.error`; the caller always receives a Turn.
+`KeyboardInterrupt` and `SystemExit` propagate as usual.
+"""
+
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -6,72 +25,28 @@ from anthropic.types import Message
 
 from gene.agent.execute_step import execute_step
 from gene.agent.llm import CachedAnthropic
-from gene.agent.tool import Tool
+from gene.agent.tool import Tool, tool_result_blocks
 from gene.agent.turn import Step, Turn, TurnError
-
-
-def tool_result_blocks(step: Step) -> list[dict[str, Any]]:
-    """Build the user message content that answers a tool_use response.
-
-    The returned list is what goes into the *next* user message's `content`
-    field — one `tool_result` block per `tool_use` block from the preceding
-    assistant response, paired by `tool_use_id`. The shape is dictated by
-    the Anthropic Messages API tool-use protocol, not by us:
-
-        {
-            "type": "tool_result",                      # required literal
-            "tool_use_id": str,                         # must match the id
-                                                        # from the tool_use block
-            "content": str | list[content_block],       # optional; string form
-                                                        # is fine for text-only
-                                                        # results (list form
-                                                        # needed only for images)
-            "is_error": bool,                           # optional
-        }
-
-    Parallel tool calls in one assistant turn all get their results
-    packed into a single user message's content list; ordering doesn't
-    matter — the model pairs them by `tool_use_id`.
-    """
-    return [
-        {
-            "type": "tool_result",
-            "tool_use_id": call.tool_use_id,
-            "content": call.output,
-            "is_error": call.is_error,
-        }
-        for call in step.tool_calls
-    ]
 
 
 class TurnRunner:
     """Executes one turn: the send → tool_use → send → ... → end_turn loop.
 
-    Stateless per `run()`. Holds the pieces that stay constant across turns:
-    the LLM client, the tool registry, the step cap. History is passed in
-    each call — no state accumulates on the runner itself.
-
-    Exceptions raised during a step (API errors, unexpected failures) are
-    caught and recorded on `Turn.error`; the caller always receives a Turn.
-    `KeyboardInterrupt` and `SystemExit` propagate as usual.
+    Holds only the LLM client — the one invariant across every turn of
+    every composer. `system`, `tools`, and `max_steps` are per-call
+    because composers routinely vary them turn-to-turn.
     """
 
-    def __init__(
-        self,
-        llm: CachedAnthropic,
-        tools: list[Tool] | None = None,
-        max_steps: int = 10,
-    ):
+    def __init__(self, llm: CachedAnthropic):
         self.llm = llm
-        self.max_steps = max_steps
-        self._schemas: list[dict[str, Any]] = [t.schema for t in (tools or [])]
-        self._handlers: dict[str, Tool] = {t.schema["name"]: t for t in (tools or [])}
 
     def run(
         self,
         messages: list[dict[str, Any]],
         user_input: str,
         system: str | None = None,
+        tools: list[Tool] | None = None,
+        max_steps: int = 10,
     ) -> Turn:
         """Run one turn: send → tool_use → send → ... → end_turn.
 
@@ -100,6 +75,8 @@ class TurnRunner:
         caught and recorded on `Turn.error` — the caller always receives
         a Turn back with whatever partial state was accumulated.
         """
+        tools = tools or []
+
         # --- set once at turn start ---
         turn_id = uuid.uuid4().hex
         started_at = datetime.now(UTC)
@@ -113,7 +90,7 @@ class TurnRunner:
         error: TurnError | None = None
         final_message: Message | None = None
 
-        for i in range(self.max_steps):
+        for i in range(max_steps):
             # Any failure inside the step — network, API error, unexpected bug —
             # becomes a TurnError. We return whatever partial state we have.
             try:
@@ -121,8 +98,7 @@ class TurnRunner:
                     self.llm,
                     messages + new_messages,
                     system,
-                    self._schemas,
-                    self._handlers,
+                    tools,
                 )
             except Exception as e:
                 error = TurnError(type=type(e).__name__, message=str(e), step_index=i)
@@ -146,7 +122,9 @@ class TurnRunner:
 
             # Model asked to use tools; the tools already ran inside execute_step.
             # Feed the results back as a user message and loop for another send.
-            new_messages.append({"role": "user", "content": tool_result_blocks(step)})
+            new_messages.append(
+                {"role": "user", "content": tool_result_blocks(step.tool_calls)}
+            )
 
         return Turn(
             id=turn_id,

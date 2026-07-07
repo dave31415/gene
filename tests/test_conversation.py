@@ -69,7 +69,7 @@ class FakeRunner(TurnRunner):
         self._turns = list(turns)
         self.calls: list[tuple[list[dict], str, str | None]] = []
 
-    def run(self, messages, user_input, system=None):
+    def run(self, messages, user_input, system=None, tools=None, max_steps=10):
         self.calls.append((list(messages), user_input, system))
         return self._turns.pop(0)
 

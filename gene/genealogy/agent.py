@@ -62,5 +62,11 @@ def build_conversation(
     system = build_system_prompt(family_tag, conn, prompt=prompt)
     if llm is None:
         llm = CachedAnthropic(config=get_llm_config(model=model))
-    runner = TurnRunner(llm=llm, tools=[query_tool.make_tool(conn)], max_steps=max_steps)
-    return Conversation(runner, system=system, log_path=log_path)
+    runner = TurnRunner(llm=llm)
+    return Conversation(
+        runner,
+        system=system,
+        tools=[query_tool.make_tool(conn)],
+        max_steps=max_steps,
+        log_path=log_path,
+    )
