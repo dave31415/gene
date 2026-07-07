@@ -42,7 +42,10 @@ def chat(
 
     if ask is not None:
         turn = conv.ask(ask)
-        print(f"llm> {turn.text}")
+        if turn.error:
+            print(f"llm> [error: {turn.error.type}: {turn.error.message}]")
+        else:
+            print(f"llm> {turn.text}")
         if verbose:
             print(f"     [{turn.summary()}]")
         return
@@ -58,7 +61,10 @@ def chat(
         if user in ("/quit", "/exit", "/q"):
             break
         turn = conv.ask(user)
-        print(f"llm> {turn.text}\n")
+        if turn.error:
+            print(f"llm> [error: {turn.error.type}: {turn.error.message}]\n")
+        else:
+            print(f"llm> {turn.text}\n")
         if verbose:
             print(f"     [{turn.summary()}]\n")
 
