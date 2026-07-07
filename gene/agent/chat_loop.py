@@ -3,15 +3,19 @@
 Wires a `TurnRunner` (with the calculator tool by default) into a
 `Conversation` and pumps stdin through it. Pass `--verbose` to print
 `turn.summary()` after each response — handy for seeing when tools ran.
+The default system prompt lives at `prompts/general_purpose.md`; pass
+`--system STRING` to override.
 """
 
 import argparse
 from datetime import datetime
 from pathlib import Path
 
+from gene.agent import PROMPTS_DIR
 from gene.agent.config import get_llm_config
 from gene.agent.conversation import Conversation
 from gene.agent.llm import CachedAnthropic
+from gene.agent.prompts import render_prompt
 from gene.agent.tools.calculator import CALCULATOR
 from gene.agent.turn_runner import TurnRunner
 
@@ -25,6 +29,8 @@ def chat_loop(
     log_path: Path | str | None = None,
 ) -> None:
     """Interactive REPL. /quit or Ctrl-D to exit."""
+    if system is None:
+        system = render_prompt("general_purpose", PROMPTS_DIR)
     llm = CachedAnthropic(config=get_llm_config(model=model))
     runner = TurnRunner(llm=llm, tools=[CALCULATOR])
     conv = Conversation(runner, system=system, log_path=log_path)
@@ -55,7 +61,11 @@ if __name__ == "__main__":
         default="sonnet",
         help="Model tag (default: sonnet)",
     )
-    parser.add_argument("--system", default=None, help="Optional system prompt")
+    parser.add_argument(
+        "--system",
+        default=None,
+        help="Override the default system prompt (prompts/general_purpose.md).",
+    )
     parser.add_argument(
         "--verbose",
         action="store_true",
