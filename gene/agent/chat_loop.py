@@ -28,12 +28,15 @@ def chat_loop(
     verbose: bool = False,
     log_path: Path | str | None = None,
 ) -> None:
+
     """Interactive REPL. /quit or Ctrl-D to exit."""
     if system is None:
         system = render_prompt("general_purpose", PROMPTS_DIR)
+
     llm = CachedAnthropic(config=get_llm_config(model=model))
     runner = TurnRunner(llm=llm, tools=[CALCULATOR])
     conv = Conversation(runner, system=system, log_path=log_path)
+
     log_note = f", log={log_path}" if log_path else ""
     print(f"Chat started (model={model}, tools=[calculator]{log_note}). /quit to exit.\n")
 

@@ -82,6 +82,7 @@ class Step(NamedTuple):
     completed_at: datetime
 
     def to_dict(self) -> dict[str, Any]:
+        # write into a dict so it can be serialized to JSON
         return {
             "request": self.request,
             "response": self.response.model_dump(mode="json"),
@@ -97,6 +98,7 @@ class Step(NamedTuple):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Step":
+        # class method to load from dict after deserializing from JSON
         return cls(
             request=d["request"],
             response=Message.model_validate(d["response"]),
@@ -125,6 +127,7 @@ class Turn(NamedTuple):
     completed_at: datetime
 
     def to_dict(self) -> dict[str, Any]:
+        # write into a dict so it can be serialized to JSON
         return {
             "id": self.id,
             "user_input": self.user_input,
@@ -141,6 +144,7 @@ class Turn(NamedTuple):
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Turn":
+        # class method to load from dict after deserializing from JSON
         return cls(
             id=d["id"],
             user_input=d["user_input"],

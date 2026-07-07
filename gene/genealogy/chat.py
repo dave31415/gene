@@ -31,6 +31,7 @@ def chat(
     ask: str | None = None,
     log_path: Path | str | None = None,
 ) -> None:
+
     """Chat with the agent for the given family. `ask` runs one turn and exits."""
     conv = build_conversation(family_tag, model=model, log_path=log_path)
     log_note = f", log={log_path}" if log_path else ""

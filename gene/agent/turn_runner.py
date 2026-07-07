@@ -1,12 +1,12 @@
-import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from anthropic.types import Message
 
+from gene.agent.execute_step import execute_step
 from gene.agent.llm import CachedAnthropic
-from gene.agent.tool import Tool, ToolCall
+from gene.agent.tool import Tool
 from gene.agent.turn import Step, Turn, TurnError
 
 
@@ -117,7 +117,13 @@ class TurnRunner:
             # Any failure inside the step — network, API error, unexpected bug —
             # becomes a TurnError. We return whatever partial state we have.
             try:
-                step = self._one_step(messages + new_messages, system)
+                step = execute_step(
+                    self.llm,
+                    messages + new_messages,
+                    system,
+                    self._schemas,
+                    self._handlers,
+                )
             except Exception as e:
                 error = TurnError(type=type(e).__name__, message=str(e), step_index=i)
                 terminal_reason = "error"
@@ -138,7 +144,7 @@ class TurnRunner:
                 final_message = step.response
                 break
 
-            # Model asked to use tools; the tools already ran inside _one_step.
+            # Model asked to use tools; the tools already ran inside execute_step.
             # Feed the results back as a user message and loop for another send.
             new_messages.append({"role": "user", "content": tool_result_blocks(step)})
 
@@ -152,78 +158,4 @@ class TurnRunner:
             error=error,
             started_at=started_at,
             completed_at=datetime.now(UTC),
-        )
-
-    def _one_step(self, messages: list[dict[str, Any]], system: str | None) -> Step:
-        """Send once, execute any tool_use blocks, return a Step record."""
-        tools_arg = self._schemas if self._schemas else None
-        started_at = datetime.now(UTC)
-        t_step = time.perf_counter()
-
-        t_api = time.perf_counter()
-        msg, meta = self.llm.send(messages=messages, system=system, tools=tools_arg)
-        api_seconds = time.perf_counter() - t_api
-
-        tool_calls: list[ToolCall] = []
-        if msg.stop_reason == "tool_use":
-            tool_calls = [self._execute_tool(b) for b in msg.content if b.type == "tool_use"]
-
-        seconds = time.perf_counter() - t_step
-        return Step(
-            request=meta["request"],
-            response=msg,
-            tool_calls=tool_calls,
-            input_tokens=msg.usage.input_tokens,
-            output_tokens=msg.usage.output_tokens,
-            api_seconds=api_seconds,
-            seconds=seconds,
-            cache_hit=meta["cache_hit"],
-            started_at=started_at,
-            completed_at=datetime.now(UTC),
-        )
-
-    def _execute_tool(self, block: Any) -> ToolCall:
-        """Run one `tool_use` block that came back from the model.
-
-        `block` is an Anthropic `ToolUseBlock`: it has `id` (the id we must
-        echo back on the matching `tool_result`), `name` (which tool the
-        model wants), and `input` (the arguments). We look the name up in
-        our handler registry and invoke it. Whatever happens, we return a
-        `ToolCall` record — never raise — so the runner loop can always
-        send *something* back to the model for every tool_use it emitted.
-
-        Two failure modes, both surfaced with `is_error=True`:
-
-        - **unknown tool**: the model asked for a tool we never registered.
-          A schema/config mismatch, not a bug in the tool itself.
-        - **handler raised**: the tool ran but threw. We stringify the
-          exception so the model can read it and decide whether to retry
-          with different arguments.
-
-        `dict(block.input)` snapshots the SDK's typed input into a plain
-        dict — cheaper to log and store, and decoupled from SDK types.
-        """
-
-        t0 = time.perf_counter()
-        tool_input = dict(block.input)
-        tool = self._handlers.get(block.name)
-
-        if tool is None:
-            output = f"unknown tool: {block.name}"
-            is_error = True
-        else:
-            try:
-                output = tool.handler(tool_input)
-                is_error = False
-            except Exception as e:
-                output = f"{type(e).__name__}: {e}"
-                is_error = True
-
-        return ToolCall(
-            tool_use_id=block.id,
-            name=block.name,
-            input=tool_input,
-            output=output,
-            is_error=is_error,
-            seconds=time.perf_counter() - t0,
         )
