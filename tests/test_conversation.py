@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from anthropic.types import Message
 
-from gene.agent.conversation import Conversation
+from gene.agent.conversation import Conversation, create_turn_memory
 from gene.agent.turn import Step, Turn
 from gene.agent.turn_runner import TurnRunner
 
@@ -126,3 +126,49 @@ def test_ask_still_updates_history_and_turns_when_logging(tmp_path):
     turn = conv.ask("q")
     assert conv.turns == [turn]
     assert conv.history == turn.new_messages
+
+
+def test_create_turn_memory_strips_tool_traffic():
+    new_messages = [
+        {"role": "user", "content": "how many kids?"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Let me check."},
+                {"type": "tool_use", "id": "toolu_1", "name": "q", "input": {}},
+            ],
+        },
+        {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "..."}],
+        },
+        {"role": "assistant", "content": [{"type": "text", "text": "Six."}]},
+    ]
+    kept = create_turn_memory(new_messages)
+    assert kept == [
+        {"role": "user", "content": "how many kids?"},
+        {"role": "assistant", "content": [{"type": "text", "text": "Let me check."}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "Six."}]},
+    ]
+
+
+def test_create_turn_memory_preserves_string_content_messages():
+    kept = create_turn_memory([{"role": "user", "content": "hi"}])
+    assert kept == [{"role": "user", "content": "hi"}]
+
+
+def test_ask_history_uses_create_turn_memory():
+    """History should hold the filtered form, not the raw new_messages."""
+    turn = _make_turn("hi")
+    turn.new_messages.append(
+        {
+            "role": "user",
+            "content": [{"type": "tool_result", "tool_use_id": "toolu_x", "content": "..."}],
+        }
+    )
+    conv = Conversation(FakeRunner([turn]))
+    conv.ask("hi")
+    for msg in conv.history:
+        content = msg["content"]
+        if isinstance(content, list):
+            assert all(b.get("type") == "text" for b in content)
